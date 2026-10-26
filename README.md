@@ -48,6 +48,7 @@ Launcher y runtime modular de clonación bare y gestión de worktrees para Arch 
     ├── test-git-bare-clone-defaults.sh
     ├── test-git-bare-clone-sync.sh
     ├── test-git-worktree-base.sh
+    ├── test-git-worktree-parallel.sh
     └── test-set-variable.sh
 ```
 
@@ -99,6 +100,52 @@ git-bare-clone <repo>
 git-create-worktree <nombre>
 git-issue-worktree <issue> <slug>
 ```
+
+## Limpieza de Worktrees Antiguos de Master / Rama Default
+
+En versiones anteriores a esta arquitectura modular, el clonador creaba automáticamente un worktree para la rama por defecto remota (`origin/HEAD`, habitualmente `master` o `main`) en `$WORKTREES_HOME/<repo>/<master>`.
+
+### El problema histórico
+
+Git no permite que una misma rama esté activa (*checked out*) en más de un worktree a la vez. Cuando un repositorio bare mantenía un worktree automático permanente en `master`, cualquier intento posterior por parte de agentes concurrentes, scripts de CI o desarrolladores de hacer checkout directo de `master` o crear un worktree derivado de ella fallaba con el error:
+
+```text
+fatal: 'master' is already checked out at '/ruta/a/worktrees/repo/master'
+```
+
+Al dejar libre la rama default (`origin/HEAD`) durante la clonación inicial y en `sync`, múltiples agentes pueden bifurcar ramas nuevas en paralelo (`agent-1`, `agent-2`) basadas en `origin/HEAD` sin bloquearse entre sí, y la rama `master` queda disponible para cuando realmente se requiera un checkout directo.
+
+### Procedimiento paso a paso para repositorios existentes
+
+Si tenés repositorios clonados con versiones previas donde el worktree de `master` o `main` aún existe, podés liberarlo siguiendo estos pasos:
+
+1. **Listar los worktrees existentes:**
+   Desde el repositorio bare o cualquiera de sus worktrees:
+   ```bash
+   git worktree list
+   ```
+
+2. **Verificar que no hayan cambios sin commitear:**
+   Ingresá al worktree antiguo de `master` (o `main`) y confirmá que el estado esté limpio:
+   ```bash
+   cd /z/repos/<repo>/master
+   git status
+   ```
+   Si hay cambios pendientes o stashes, commitealos o respaldalos en una rama separada antes de continuar.
+
+3. **Eliminar el worktree antiguo de master:**
+   Remové el worktree con el comando de Git:
+   ```bash
+   git worktree remove /z/repos/<repo>/master
+   ```
+   *(Alternativa si el directorio fue borrado manualmente o está desincronizado: `rm -rf /z/repos/<repo>/master && git worktree prune`).*
+
+4. **Confirmar que master queda libre:**
+   Verificá nuevamente con:
+   ```bash
+   git worktree list
+   ```
+   La rama `master` (o `main`) ya no aparecerá asociada a ninguna ruta de trabajo, quedando 100% disponible para que agentes concurrentes trabajen en ramas paralelas o hagan checkout directo cuando sea necesario.
 
 ## Instalación
 
