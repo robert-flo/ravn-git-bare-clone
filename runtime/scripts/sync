@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Sync remote branches and worktrees for an existing bare repository.
+
+set -Eeuo pipefail
+
+scrDir="$(dirname "$(realpath "$0")")"
+exec "$scrDir/clone" "$@"

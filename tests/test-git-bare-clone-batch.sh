@@ -21,6 +21,11 @@ readonly GROUP_ONE
 GROUP_TWO="$TEST_ROOT/group-two"
 readonly GROUP_TWO
 
+export GIT_AUTHOR_NAME="Test"
+export GIT_AUTHOR_EMAIL="test@example.com"
+export GIT_COMMITTER_NAME="Test"
+export GIT_COMMITTER_EMAIL="test@example.com"
+
 mkdir -p "$FAKE_BIN"
 
 cat > "$FAKE_BIN/git" << 'EOF_GIT'

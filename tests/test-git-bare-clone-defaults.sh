@@ -24,6 +24,11 @@ fail() {
   exit 1
 }
 
+export GIT_AUTHOR_NAME="Test"
+export GIT_AUTHOR_EMAIL="test@example.com"
+export GIT_COMMITTER_NAME="Test"
+export GIT_COMMITTER_EMAIL="test@example.com"
+
 mkdir -p "$FAKE_BIN" "$TEST_ROOT/home"
 
 cat > "$FAKE_BIN/mkdir" << 'EOF_STUB'

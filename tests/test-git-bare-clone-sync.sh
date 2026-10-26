@@ -54,7 +54,7 @@ mkdir -p "$HOME"
 # basename(origin.git) with .git stripped → origin; the bare keeps .git
 REPO_NAME="origin"
 [[ -d $BARE_HOME/$REPO_NAME.git ]] || fail "bare not created under $BARE_HOME"
-[[ -d $WORK_HOME/$REPO_NAME/master ]] || fail "master worktree missing after first clone"
+[[ ! -e $WORK_HOME/$REPO_NAME/master ]] || fail "master worktree should not be created (kept free)"
 [[ ! -e $WORK_HOME/$REPO_NAME.git ]] || fail "worktrees folder must not carry the .git suffix"
 [[ $(< "$WORK_HOME/$REPO_NAME/.git") == "gitdir: $(realpath "$BARE_HOME")/$REPO_NAME.git" ]] ||
   fail "worktrees root .git does not point to $REPO_NAME.git"
@@ -74,13 +74,13 @@ git -C "$SEED" push -u origin rc > /dev/null 2>&1
 
 "$BIN" clone "$ORIGIN" > "$TEST_ROOT/second.out"
 
-[[ -d $WORK_HOME/$REPO_NAME/master ]] || fail "master worktree lost after sync"
+[[ ! -e $WORK_HOME/$REPO_NAME/master ]] || fail "master worktree should not exist after sync"
 [[ -d $WORK_HOME/$REPO_NAME/dev ]] || fail "dev worktree not created on sync"
 [[ -d $WORK_HOME/$REPO_NAME/rc ]] || fail "rc worktree not created on sync"
 
 # Idempotent: third run creates nothing new and keeps existing worktrees
 "$BIN" "$ORIGIN" > "$TEST_ROOT/third.out"
-[[ -d $WORK_HOME/$REPO_NAME/master ]] || fail "master worktree lost after third run"
+[[ ! -e $WORK_HOME/$REPO_NAME/master ]] || fail "master worktree should not exist after third run"
 [[ -d $WORK_HOME/$REPO_NAME/dev ]] || fail "dev worktree lost after third run"
 [[ -d $WORK_HOME/$REPO_NAME/rc ]] || fail "rc worktree lost after third run"
 
