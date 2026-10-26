@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+
+# User-facing help command module for ravn-git-bare-clone.
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  set -Eeuo pipefail
+  module_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  RUNTIME_DIR="${RUNTIME_DIR:-$(cd "$module_dir/.." && pwd)}"
+  # shellcheck disable=SC1091
+  source "$RUNTIME_DIR/helper/set_variable.sh"
+  # shellcheck disable=SC1091
+  source "$RUNTIME_DIR/lib/presentation.sh"
+  # shellcheck disable=SC1091
+  source "$RUNTIME_DIR/lib/command_catalog.sh"
+  # shellcheck disable=SC1091
+  source "$RUNTIME_DIR/lib/command_interface.sh"
+fi
+
+show_help() {
+  print_section "󰋖 Help and Usage"
+
+  cat << 'HELP_EOF'
+  ravn-git-bare-clone clones Git repositories as bare repositories and sets up
+  worktrees for all remote branches.
+
+  BASIC USE
+    ravn-git-bare-clone                   Open interactive menu
+    ravn-git-bare-clone <command> [args]  Run command directly
+    ravn-git-bare-clone clone [options] <repo>
+    ravn-git-bare-clone clone --group <path> <repos...>
+
+  LOCATIONS
+    Bare objects:  $BARE_HOME/<repo>.git   (default: /z/bare/<repo>.git)
+    Worktrees:     $WORKTREES_HOME/<repo>  (default: /z/repos/<repo>)
+
+  COMMANDS
+HELP_EOF
+
+  show_command_catalog || return 1
+
+  cat << 'HELP_EOF'
+
+  EXAMPLES
+    ravn-git-bare-clone clone git@github.com:user/repo.git
+    ravn-git-bare-clone clone -w /custom/path user/repo
+    ravn-git-bare-clone clone --group /z/repos/proj user/repo1 user/repo2
+
+  ENVIRONMENT VARIABLES
+    BARE_HOME       Ruta base para bare repos (<repo>.git)
+    WORKTREES_HOME  Ruta base para worktrees
+HELP_EOF
+}
+
+show_command_catalog() {
+  local command=""
+  local description=""
+
+  while IFS= read -r command; do
+    command_catalog_get "$command" description || {
+      print_error "$RAVN_GIT_BARE_CLONE_COMMAND_CATALOG_ERROR"
+      return 1
+    }
+    description="$RAVN_GIT_BARE_CLONE_COMMAND_CATALOG_VALUE"
+    printf '    %-8s %s\n' "$command" "$description"
+  done < <(command_catalog_list all)
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  run_command_entrypoint help show_help show_help "$@"
+fi
