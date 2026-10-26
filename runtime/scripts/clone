@@ -1,0 +1,398 @@
+#!/usr/bin/env bash
+# Clone a bare git repo and create all worktrees with upstream tracking.
+
+set -Eeuo pipefail
+
+trap cleanup SIGINT SIGTERM ERR EXIT
+
+#--------------------------------#
+# import variables and functions #
+#--------------------------------#
+scrDir="$(dirname "$(realpath "$0")")"
+RUNTIME_DIR="${RUNTIME_DIR:-$(cd "$scrDir/.." && pwd)}"
+
+# shellcheck disable=SC1091
+source "$RUNTIME_DIR/helper/set_variable.sh"
+# shellcheck disable=SC1091
+if ! source "$RUNTIME_DIR/lib/presentation.sh"; then
+  echo "Error: unable to source presentation.sh..."
+  exit 1
+fi
+# shellcheck disable=SC1091
+source "$RUNTIME_DIR/lib/lifecycle.sh"
+
+# ┌──────────────────────────────────────────────────────────────────────────────┐
+# │ Configuration                                                                │
+# └──────────────────────────────────────────────────────────────────────────────┘
+
+BARE_HOME="${BARE_HOME:-/z/bare}"
+WORKTREES_HOME="${WORKTREES_HOME:-/z/repos}"
+worktrees_base=""
+declare -a args=()
+declare -i batch_mode=0
+declare -a batch_worktrees=()
+declare -a batch_repositories=()
+
+readonly ICON_FOLDER="󰉋"
+readonly ICON_CLONE="󰑌"
+readonly ICON_BRANCH=""
+
+# ┌──────────────────────────────────────────────────────────────────────────────┐
+# │ Usage                                                                        │
+# └──────────────────────────────────────────────────────────────────────────────┘
+
+usage() {
+  echo ""
+  echo -e "${WHITE}Usage:${NC} ravn-git-bare-clone clone ${GRAY}[-h] [-v] [-w <path>]${NC} ${CYAN}<repository>${NC}"
+  echo -e "       ravn-git-bare-clone clone ${GRAY}[options]${NC} ${CYAN}--group <path> <repository>... [--group <path> <repository>...]${NC}"
+  echo ""
+  echo -e "  Clone a bare git repo and create all worktrees with upstream tracking."
+  echo -e "  If the bare already exists, fetch origin and create worktrees only for"
+  echo -e "  remote branches that are still missing locally."
+  echo ""
+  echo -e "${WHITE}Locations${NC} ${GRAY}(override via env vars or flags):${NC}"
+  echo -e "  ${GRAY}Bare objects:${NC}  \$BARE_HOME/<repo>.git   ${GRAY}(default: /z/bare/<repo>.git)${NC}"
+  echo -e "  ${GRAY}Worktrees:${NC}     \$WORKTREES_HOME/<repo>  ${GRAY}(default: /z/repos/<repo>)${NC}"
+  echo ""
+  echo -e "${WHITE}Options:${NC}"
+  echo -e "  ${CYAN}-h, --help${NC}           Print this help and exit"
+  echo -e "  ${CYAN}-v, --verbose${NC}        Print script debug info"
+  echo -e "  ${CYAN}-w, --worktrees-dir${NC}  Override worktrees base directory"
+  echo -e "  ${CYAN}--group <path> <repos...>${NC}  Clone one or more repositories into a worktrees group"
+  echo ""
+  echo -e "${WHITE}Batch behavior:${NC} existing repositories are refreshed (fetch + missing"
+  echo -e "  worktrees); a clone/sync failure stops the batch."
+  echo -e "${WHITE}Examples:${NC}"
+  echo -e "  ravn-git-bare-clone clone --group /z/repos/<proyecto> acme/api acme/web"
+  echo -e "  ravn-git-bare-clone clone --group /z/repos/app owner/api owner/web --group /z/repos owner/tools"
+  echo -e "  ravn-git-bare-clone clone owner/repo   ${GRAY}# re-run to pick up new remote branches${NC}"
+  echo ""
+  exit 0
+}
+
+# ┌──────────────────────────────────────────────────────────────────────────────┐
+# │ Argument Parsing                                                             │
+# └──────────────────────────────────────────────────────────────────────────────┘
+
+parse_params() {
+  local group_path=""
+  local group_count=0
+  local worktrees_override=0
+
+  worktrees_base="$WORKTREES_HOME"
+  batch_mode=0
+  batch_worktrees=()
+  batch_repositories=()
+
+  while :; do
+    case "${1-}" in
+      -h | --help) usage ;;
+      -v | --verbose) set -x ;;
+      --no-color) : ;;
+      -w | --worktrees-dir)
+        [[ -n ${2-} && ${2} != -* ]] || die "$1 requires a worktrees path"
+        worktrees_base="${2-}"
+        worktrees_override=1
+        shift
+        ;;
+      --group)
+        ((worktrees_override == 0)) || die "--group cannot be combined with -w/--worktrees-dir"
+        batch_mode=1
+        group_path="${2-}"
+        [[ -z $group_path || $group_path == "--group" ]] && die "--group requires a worktrees path"
+        shift 2
+        group_count=0
+
+        while [[ $# -gt 0 && ${1} != "--group" ]]; do
+          [[ ${1} == -* ]] && die "Unexpected option in --group: $1"
+          batch_worktrees+=("$group_path")
+          batch_repositories+=("${1}")
+          group_count=$((group_count + 1))
+          shift
+        done
+
+        ((group_count > 0)) || die "--group requires at least one repository"
+        continue
+        ;;
+      -?*) die "Unknown option: $1" ;;
+      *) break ;;
+    esac
+    shift
+  done
+
+  args=("$@")
+  if ((batch_mode == 1)); then
+    ((${#args[@]} == 0)) || die "Repositories must follow --group <path>"
+  else
+    [[ ${#args[@]} -eq 0 ]] && usage
+  fi
+
+  return 0
+}
+
+# ┌──────────────────────────────────────────────────────────────────────────────┐
+# │ Repository helpers                                                           │
+# └──────────────────────────────────────────────────────────────────────────────┘
+
+normalize_repository() {
+  local repository=$1
+
+  case "$repository" in
+    git@* | http://* | https://* | file://* | /* | ./* | ../*) printf '%s\n' "$repository" ;;
+    */*)
+      if [[ $repository == *.git ]]; then
+        printf 'git@github.com:%s\n' "$repository"
+      else
+        printf 'git@github.com:%s.git\n' "$repository"
+      fi
+      ;;
+    *) die "Repository must be an owner/repo or a Git URL: $repository" ;;
+  esac
+}
+
+list_remote_branches() {
+  local bare_dir=$1
+
+  git --git-dir="$bare_dir" for-each-ref \
+    --format='%(refname)' \
+    refs/remotes/origin/ |
+    grep -v 'refs/remotes/origin/HEAD' |
+    sed 's|^refs/remotes/origin/||' || true
+}
+
+ensure_fetch_refspec() {
+  local bare_dir=$1
+
+  git --git-dir="$bare_dir" config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+}
+
+ensure_worktrees_root() {
+  local bare_dir=$1
+  local worktrees_dir=$2
+  local gitfile=""
+  local expected=""
+  local current=""
+
+  mkdir -p "$worktrees_dir"
+  gitfile="$worktrees_dir/.git"
+  expected="gitdir: $bare_dir"
+
+  if [[ -f $gitfile ]]; then
+    current="$(< "$gitfile")"
+    current="${current//$'\r'/}"
+    if [[ $current != "$expected" ]]; then
+      die "Worktrees root ${GRAY}$worktrees_dir${NC} points to a different bare (${GRAY}$current${NC})"
+    fi
+  elif [[ -e $gitfile ]]; then
+    die "Worktrees root ${GRAY}$worktrees_dir/.git${NC} exists but is not a gitdir file"
+  else
+    printf '%s\n' "$expected" > "$gitfile"
+  fi
+}
+
+# Returns 0 when the branch is already bound to some worktree (any path).
+branch_checked_out_elsewhere() {
+  local bare_dir=$1
+  local branch=$2
+  local line=""
+
+  while IFS= read -r line; do
+    if [[ $line == "branch refs/heads/$branch" ]]; then
+      return 0
+    fi
+  done < <(git --git-dir="$bare_dir" worktree list --porcelain 2> /dev/null || true)
+  return 1
+}
+
+add_branch_worktree() {
+  local bare_dir=$1
+  local worktrees_dir=$2
+  local branch=$3
+  local target=""
+
+  target="$worktrees_dir/$branch"
+  if [[ -e $target ]]; then
+    print_info "Already present: ${CYAN}$branch${NC}"
+    return 0
+  fi
+
+  if branch_checked_out_elsewhere "$bare_dir" "$branch"; then
+    print_info "Already checked out elsewhere: ${CYAN}$branch${NC}"
+    return 0
+  fi
+
+  print_step "${CYAN}$branch${NC}"
+  # Run via worktrees root (.git → bare) so relative paths stay layout-stable.
+  if git --git-dir="$bare_dir" show-ref --verify --quiet "refs/heads/$branch"; then
+    git -C "$worktrees_dir" worktree add "$branch" "$branch"
+  else
+    git -C "$worktrees_dir" worktree add -b "$branch" "$branch" "origin/$branch"
+  fi
+  git -C "$target" branch --set-upstream-to="origin/$branch" "$branch"
+}
+
+create_missing_worktrees() {
+  local bare_dir=$1
+  local worktrees_dir=$2
+  local -n created_ref=$3
+  local -n skipped_ref=$4
+  local branch=""
+  local -a branches=()
+  local before=""
+
+  mapfile -t branches < <(list_remote_branches "$bare_dir")
+  if ((${#branches[@]} == 0)); then
+    print_warn "No remote branches found under origin/"
+    return 0
+  fi
+
+  for branch in "${branches[@]}"; do
+    if [[ -e $worktrees_dir/$branch ]]; then
+      skipped_ref+=("$branch")
+      print_info "Already present: ${CYAN}$branch${NC}"
+      continue
+    fi
+    if branch_checked_out_elsewhere "$bare_dir" "$branch"; then
+      skipped_ref+=("$branch")
+      print_info "Already checked out elsewhere: ${CYAN}$branch${NC}"
+      continue
+    fi
+    before=0
+    [[ -e $worktrees_dir/$branch ]] && before=1
+    add_branch_worktree "$bare_dir" "$worktrees_dir" "$branch"
+    if [[ -e $worktrees_dir/$branch && $before -eq 0 ]]; then
+      created_ref+=("$branch")
+    else
+      skipped_ref+=("$branch")
+    fi
+  done
+}
+
+print_worktree_summary() {
+  local worktrees_dir=$1
+  shift
+  local -a branches=("$@")
+  local branch=""
+
+  print_header "${ICON_ROCKET} Worktrees ready"
+  echo -e "  ${CYAN}$worktrees_dir/${NC}"
+  for branch in "${branches[@]}"; do
+    if [[ -e $worktrees_dir/$branch ]]; then
+      echo -e "  ${GREEN}${ICON_CHECK}${NC} ${WHITE}$branch${NC}  ${GRAY}→  origin/$branch${NC}"
+    fi
+  done
+  echo ""
+  print_info "cd ${CYAN}$worktrees_dir/<branch>${NC} to start working"
+  echo ""
+}
+
+clone_repository() {
+  local repository=$1
+  local worktrees_base=$2
+  local repo_url=""
+  local repo_name=""
+  local bare_dir=""
+  local worktrees_dir=""
+  local bare_existed=0
+  local -a branches=()
+  local -a created=()
+  local -a skipped=()
+
+  repo_url="$(normalize_repository "$repository")"
+  repo_name="$(basename "$repo_url" .git)"
+  bare_dir="$BARE_HOME/$repo_name.git"
+  worktrees_dir="$worktrees_base/$repo_name"
+
+  # Absolute paths so gitdir: pointers stay valid from any CWD
+  mkdir -p "$BARE_HOME" "$worktrees_base"
+  bare_dir="$(realpath -m -- "$bare_dir")"
+  worktrees_dir="$(realpath -m -- "$worktrees_dir")"
+
+  if [[ ! -d $bare_dir && -e $worktrees_dir ]]; then
+    print_warn "YA EXISTE worktrees sin bare: $worktrees_dir (omitido)"
+    return 0
+  fi
+
+  if [[ -d $bare_dir ]]; then
+    bare_existed=1
+  fi
+
+  print_header "${ICON_GIT} git-bare-clone"
+  print_section "${ICON_GEAR} Configuration"
+  print_info "Repository:  ${WHITE}$repo_name${NC}"
+  print_info "Bare:        ${GRAY}$bare_dir${NC}"
+  print_info "Worktrees:   ${GRAY}$worktrees_dir${NC}"
+  if ((bare_existed == 1)); then
+    print_info "Mode:        ${WHITE}sync existing${NC} ${GRAY}(fetch + missing worktrees)${NC}"
+  else
+    print_info "Mode:        ${WHITE}fresh clone${NC}"
+  fi
+
+  # ┌──────────────────────────────────────────────────────────────────────────────┐
+  # │ Execution Steps                                                              │
+  # └──────────────────────────────────────────────────────────────────────────────┘
+
+  if ((bare_existed == 0)); then
+    # ── Step 1/5: Clone bare ──────────────────────────────────────────────────────
+    print_section "${ICON_CLONE} [1/5] Cloning bare repository"
+    git clone --bare "$repo_url" "$bare_dir"
+    print_success "Bare repo cloned to ${GRAY}$bare_dir${NC}"
+  else
+    # ── Step 1/5: Reuse bare ──────────────────────────────────────────────────────
+    print_section "${ICON_CLONE} [1/5] Reusing existing bare repository"
+    print_success "Bare repo already at ${GRAY}$bare_dir${NC}"
+  fi
+
+  # ── Step 2/5: Configure fetch refspec ────────────────────────────────────────
+  print_section "${ICON_GEAR} [2/5] Configuring remote fetch refs"
+  ensure_fetch_refspec "$bare_dir"
+  print_success "Fetch refspec configured"
+
+  # ── Step 3/5: Fetch all remote tracking refs ─────────────────────────────────
+  print_section "${ICON_ARROW} [3/5] Fetching remote tracking refs"
+  git --git-dir="$bare_dir" fetch origin
+  print_success "All remote refs fetched"
+  # origin/HEAD = default branch; git-create-worktree uses it as its base.
+  # An empty remote has no HEAD: warn and keep going.
+  if git --git-dir="$bare_dir" remote set-head origin --auto > /dev/null 2>&1; then
+    print_success "origin/HEAD set to the remote default branch"
+  else
+    print_warn "Could not determine the remote default branch (origin/HEAD not set)"
+  fi
+
+  # ── Step 4/5: Create worktrees directory with .git pointer ───────────────────
+  print_section "${ICON_FOLDER} [4/5] Setting up worktrees directory"
+  ensure_worktrees_root "$bare_dir" "$worktrees_dir"
+  print_success "Worktrees root ready at ${GRAY}$worktrees_dir${NC}"
+
+  # ── Step 5/5: Create missing worktrees with upstream tracking ────────────────
+  print_section "${ICON_BRANCH} [5/5] Creating worktrees for missing remote branches"
+  create_missing_worktrees "$bare_dir" "$worktrees_dir" created skipped
+
+  mapfile -t branches < <(list_remote_branches "$bare_dir")
+
+  # ┌──────────────────────────────────────────────────────────────────────────────┐
+  # │ Summary                                                                      │
+  # └──────────────────────────────────────────────────────────────────────────────┘
+
+  if ((${#created[@]} > 0)); then
+    print_success "Created ${#created[@]} worktree(s): ${created[*]}"
+  else
+    print_info "No new worktrees needed"
+  fi
+  if ((${#skipped[@]} > 0)); then
+    print_info "Already present: ${skipped[*]}"
+  fi
+
+  print_worktree_summary "$worktrees_dir" "${branches[@]}"
+}
+
+parse_params "$@"
+
+if ((batch_mode == 1)); then
+  for index in "${!batch_repositories[@]}"; do
+    clone_repository "${batch_repositories[$index]}" "${batch_worktrees[$index]}"
+  done
+else
+  clone_repository "${args[0]}" "$worktrees_base"
+fi

@@ -1,0 +1,3 @@
+# canonical	aliases	label	description	icon	menu	options
+clone	c --clone -c	Clone bare repository	Clone a bare git repo and create all worktrees with upstream tracking.	󰑌	1	-h --help -v --verbose -w --worktrees-dir --group
+help	h --help -h	Help and usage	Show this guide.	󰋖	1	-h --help

@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: ShellCheck Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck
+        run: make lint
+
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Tests
+        run: make test
+
+  install:
+    name: Test Installation Target
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Test DESTDIR Install
+        run: |
+          mkdir -p dest
+          make DESTDIR=dest install
+          test -x dest/opt/ravn-git-bare-clone/ravn-git-bare-clone
+          test -f dest/opt/ravn-git-bare-clone/runtime/lib/global_fn.sh
+          test -L dest/usr/bin/ravn-git-bare-clone

@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# Launcher and command dispatcher for ravn-git-bare-clone.
+
+set -Eeuo pipefail
+
+scrDir="$(dirname "$(realpath "$0")")"
+RUNTIME_DIR="$scrDir/runtime"
+# shellcheck disable=SC1091
+source "$RUNTIME_DIR/helper/set_variable.sh"
+# shellcheck disable=SC1091
+if ! source "$RUNTIME_DIR/lib/presentation.sh"; then
+  echo "Error: unable to source presentation.sh..."
+  exit 1
+fi
+# shellcheck disable=SC1091
+source "$RUNTIME_DIR/lib/lifecycle.sh"
+# shellcheck disable=SC1091
+source "$RUNTIME_DIR/lib/command_catalog.sh"
+# shellcheck disable=SC1091
+source "$RUNTIME_DIR/lib/dispatch.sh"
+
+trap cleanup_runtime SIGINT SIGTERM ERR EXIT
+
+clear_screen() {
+  [[ -t 1 && ${TERM:-dumb} != dumb ]] || return 0
+  printf '\033[H\033[2J'
+}
+
+show_banner() {
+  local gh_user=""
+  gh_user=$(gh api user -q .login 2> /dev/null || echo "robert-flo")
+  echo -e "${CYAN}"
+  cat << 'BANNER_EOF'
+  ╭────────────────────────────────────────────────────╮
+  │                                                    │
+  │  ██████╗  █████╗ ██╗   ██╗███╗   ██╗               │
+  │  ██╔══██╗██╔══██╗██║   ██║████╗  ██║               │
+  │  ██████╔╝███████║██║   ██║██╔██╗ ██║               │
+  │  ██╔══██╗██╔══██║╚██╗ ██╔╝██║╚██╗██║               │
+  │  ██║  ██║██║  ██║ ╚████╔╝ ██║ ╚████║               │
+  │  ╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝  ╚═╝  ╚═══╝               │
+  │                                                    │
+  │        Git Bare Clone & Worktrees for Arch Linux   │
+  │                                                    │
+BANNER_EOF
+  echo -e "  │     ${GRAY}by Roberto Flores ${WHITE}@${gh_user}${CYAN}                  │"
+  cat << 'BANNER_EOF'
+  │                                                    │
+  ╰────────────────────────────────────────────────────╯
+BANNER_EOF
+  echo -e "${NC}"
+}
+
+is_help_command() {
+  case "${1:-}" in
+    help | h | --help | -h) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+show_menu() {
+  local command=""
+  local label=""
+  local icon=""
+  local menu_index=1
+
+  echo ""
+  print_section "${RAVN_ICON[ui_command]} Choose an action"
+  while IFS= read -r command; do
+    command_catalog_get "$command" label || {
+      print_error "$RAVN_GIT_BARE_CLONE_COMMAND_CATALOG_ERROR"
+      return 1
+    }
+    label="$RAVN_GIT_BARE_CLONE_COMMAND_CATALOG_VALUE"
+    command_catalog_get "$command" icon || {
+      print_error "$RAVN_GIT_BARE_CLONE_COMMAND_CATALOG_ERROR"
+      return 1
+    }
+    icon="$RAVN_GIT_BARE_CLONE_COMMAND_CATALOG_VALUE"
+    if [[ $command == help ]]; then
+      echo -e "  ${GREEN}h${NC}  $icon  $label"
+    else
+      echo -e "  ${GREEN}$menu_index${NC}  $icon  $label"
+      ((menu_index += 1))
+    fi
+  done < <(command_catalog_list menu)
+  echo -e "  ${GREEN}q${NC}  ${RAVN_ICON[ui_close]}  Exit"
+  echo ""
+  echo -ne "  ${LIGHT_GRAY}Selection:${NC} "
+}
+
+run_interactive_menu() {
+  local choice=""
+  local repo_input=""
+
+  while true; do
+    show_menu
+    read -r choice || break
+    case "$choice" in
+      1)
+        echo ""
+        echo -ne "  ${LIGHT_GRAY}Repository (URL or owner/repo):${NC} "
+        read -r repo_input
+        if [[ -n "$repo_input" ]]; then
+          dispatch_command clone "$repo_input" || true
+        fi
+        ;;
+      h | H) dispatch_command help || true ;;
+      q | Q)
+        echo ""
+        print_info "Goodbye!"
+        return 0
+        ;;
+      *) print_error "Invalid option" ;;
+    esac
+    echo ""
+    echo -ne "  ${GRAY}Press Enter to continue...${NC}"
+    read -r || break
+    clear_screen
+    show_banner
+  done
+}
+
+main() {
+  if (($# > 0)); then
+    if is_help_command "$1"; then
+      dispatch_command help "${@:2}" || return $?
+      return 0
+    fi
+
+    # Direct dispatch if registered in command catalog
+    if command_catalog_get "$1" canonical > /dev/null 2>&1; then
+      dispatch_command "$@" || return $?
+      return 0
+    fi
+
+    # Transparent fallback: if first argument is a flag or repo path, dispatch to clone
+    if [[ "$1" == -* || "$1" == */* || "$1" == *.git ]]; then
+      dispatch_command clone "$@" || return $?
+      return 0
+    fi
+
+    # Unrecognized command
+    print_error "Unknown command: $1"
+    return 1
+  fi
+
+  # Interactive menu if run without arguments in a terminal
+  if [[ -t 0 ]]; then
+    clear_screen
+    show_banner
+    run_interactive_menu
+  else
+    dispatch_command help
+  fi
+}
+
+main "$@"
