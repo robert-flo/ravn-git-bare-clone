@@ -122,6 +122,23 @@ run_interactive_menu() {
 }
 
 main() {
+  local invoked_name=""
+  invoked_name="$(basename "$0")"
+  case "$invoked_name" in
+    git-bare-clone)
+      dispatch_command clone "$@" || return $?
+      return 0
+      ;;
+    git-create-worktree)
+      dispatch_command create "$@" || return $?
+      return 0
+      ;;
+    git-issue-worktree)
+      dispatch_command issue "$@" || return $?
+      return 0
+      ;;
+  esac
+
   if (($# > 0)); then
     if is_help_command "$1"; then
       dispatch_command help "${@:2}" || return $?

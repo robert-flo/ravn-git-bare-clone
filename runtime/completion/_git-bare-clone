@@ -1,0 +1,30 @@
+#compdef ravn-git-bare-clone git-bare-clone
+
+_git_bare_clone_completion() {
+  local completion_dir="${${(%):-%x}:A:h}"
+  local catalog_file="$completion_dir/../commands.tsv"
+  local -a command_specs
+  local canonical aliases label description icon menu options
+  local command="${words[2]:-}"
+  local command_options=""
+
+  while IFS=$'\t' read -r canonical aliases label description icon menu options; do
+    [[ -z $canonical || $canonical == \#* ]] && continue
+    command_specs+=("$canonical:$description")
+    for alias in ${(s: :)aliases}; do
+      command_specs+=("$alias:$description")
+    done
+    if [[ $canonical == "$command" || " $aliases " == *" $command "* ]]; then
+      command_options="$options"
+    fi
+  done < "$catalog_file"
+
+  if ((CURRENT == 2)); then
+    _describe 'ravn-git-bare-clone command' command_specs
+    return
+  fi
+
+  _arguments '1:command:->command' "*:option:($command_options)"
+}
+
+_git_bare_clone_completion

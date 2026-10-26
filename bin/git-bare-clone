@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Compatibility wrapper for git-bare-clone.
+
+set -Eeuo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+root_dir="$(cd "$script_dir/.." && pwd)"
+
+if [[ -x "$root_dir/ravn-git-bare-clone" ]]; then
+  exec "$root_dir/ravn-git-bare-clone" clone "$@"
+elif [[ -x /opt/ravn-git-bare-clone/ravn-git-bare-clone ]]; then
+  exec /opt/ravn-git-bare-clone/ravn-git-bare-clone clone "$@"
+else
+  exec ravn-git-bare-clone clone "$@"
+fi

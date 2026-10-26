@@ -46,9 +46,11 @@ usage() {
   echo -e "${WHITE}Usage:${NC} ravn-git-bare-clone clone ${GRAY}[-h] [-v] [-w <path>]${NC} ${CYAN}<repository>${NC}"
   echo -e "       ravn-git-bare-clone clone ${GRAY}[options]${NC} ${CYAN}--group <path> <repository>... [--group <path> <repository>...]${NC}"
   echo ""
-  echo -e "  Clone a bare git repo and create all worktrees with upstream tracking."
+  echo -e "  Clone a bare git repo and create worktrees for non-default remote branches."
+  echo -e "  The remote default branch (origin/HEAD) is left free in the bare repository"
+  echo -e "  so parallel checkouts can work without branch collision."
   echo -e "  If the bare already exists, fetch origin and create worktrees only for"
-  echo -e "  remote branches that are still missing locally."
+  echo -e "  non-default remote branches that are still missing locally."
   echo ""
   echo -e "${WHITE}Locations${NC} ${GRAY}(override via env vars or flags):${NC}"
   echo -e "  ${GRAY}Bare objects:${NC}  \$BARE_HOME/<repo>.git   ${GRAY}(default: /z/bare/<repo>.git)${NC}"
@@ -231,6 +233,25 @@ add_branch_worktree() {
   git -C "$target" branch --set-upstream-to="origin/$branch" "$branch"
 }
 
+get_default_branch() {
+  local bare_dir=$1
+  local ref=""
+
+  ref=$(git --git-dir="$bare_dir" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null || true)
+  if [[ -n "$ref" ]]; then
+    printf '%s\n' "${ref#refs/remotes/origin/}"
+    return 0
+  fi
+
+  ref=$(git --git-dir="$bare_dir" rev-parse --abbrev-ref origin/HEAD 2>/dev/null || true)
+  if [[ -n "$ref" && "$ref" != "origin/HEAD" ]]; then
+    printf '%s\n' "${ref#origin/}"
+    return 0
+  fi
+
+  return 0
+}
+
 create_missing_worktrees() {
   local bare_dir=$1
   local worktrees_dir=$2
@@ -239,6 +260,9 @@ create_missing_worktrees() {
   local branch=""
   local -a branches=()
   local before=""
+  local default_branch=""
+
+  default_branch="$(get_default_branch "$bare_dir")"
 
   mapfile -t branches < <(list_remote_branches "$bare_dir")
   if ((${#branches[@]} == 0)); then
@@ -247,6 +271,11 @@ create_missing_worktrees() {
   fi
 
   for branch in "${branches[@]}"; do
+    if [[ -n "$default_branch" && "$branch" == "$default_branch" ]]; then
+      skipped_ref+=("$branch")
+      print_info "Default branch kept free: ${CYAN}$branch${NC}"
+      continue
+    fi
     if [[ -e $worktrees_dir/$branch ]]; then
       skipped_ref+=("$branch")
       print_info "Already present: ${CYAN}$branch${NC}"

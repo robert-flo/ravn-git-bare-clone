@@ -5,6 +5,10 @@ tests_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export TMPDIR="${TMPDIR:-/tmp}"
 mkdir -p "$TMPDIR"
 export GIT_CONFIG_GLOBAL=/dev/null
+export GIT_AUTHOR_NAME="Test"
+export GIT_AUTHOR_EMAIL="test@example.com"
+export GIT_COMMITTER_NAME="Test"
+export GIT_COMMITTER_EMAIL="test@example.com"
 
 echo "Running test suite in $tests_dir..."
 for t in "$tests_dir"/test-*.sh; do

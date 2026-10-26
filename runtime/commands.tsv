@@ -1,3 +1,6 @@
 # canonical	aliases	label	description	icon	menu	options
-clone	c --clone -c	Clone bare repository	Clone a bare git repo and create all worktrees with upstream tracking.	󰑌	1	-h --help -v --verbose -w --worktrees-dir --group
+clone	c --clone -c	Clone bare repository	Clone bare repo and create worktrees for non-default remote branches (default branch stays free).	󰑌	1	-h --help -v --verbose -w --worktrees-dir --group
+sync	s --sync -s	Sync bare repository	Sync missing non-default remote branches for an existing bare repository.	󰁪	1	-h --help -v --verbose -w --worktrees-dir --group
+create	cr --create	Create worktree	Create a new worktree with optional upstream tracking.	󰘾	1	-h --help -v --verbose -r --repo -b --branch -B --base -p --prefix -N --no-create-upstream
+issue	i --issue	Issue worktree	Link a GitHub issue to a new git worktree.		1	-h --help -v --verbose -r --repo -B --base -p --prefix
 help	h --help -h	Help and usage	Show this guide.	󰋖	1	-h --help

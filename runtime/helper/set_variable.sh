@@ -7,8 +7,24 @@ readonly RAVN_GIT_BARE_CLONE_ROOT="${RAVN_GIT_BARE_CLONE_ROOT:-$(cd "$RUNTIME_DI
 
 BARE_HOME="${BARE_HOME:-/z/bare}"
 WORKTREES_HOME="${WORKTREES_HOME:-/z/repos}"
-USER_NAME="${USER_NAME:-${NAME:-Roberto Flores}}"
-USER_EMAIL="${USER_EMAIL:-${EMAIL:-25asab015@ujmd.edu.sv}}"
+
+USER_NAME="${USER_NAME:-${GIT_AUTHOR_NAME:-${NAME:-}}}"
+if [[ -z "$USER_NAME" ]]; then
+  USER_NAME="$(git config user.name 2>/dev/null || true)"
+fi
+if [[ -z "$USER_NAME" ]]; then
+  echo "Error: user.name is not configured in environment or git config. Please set git config user.name." >&2
+  exit 1
+fi
+
+USER_EMAIL="${USER_EMAIL:-${GIT_AUTHOR_EMAIL:-${EMAIL:-}}}"
+if [[ -z "$USER_EMAIL" ]]; then
+  USER_EMAIL="$(git config user.email 2>/dev/null || true)"
+fi
+if [[ -z "$USER_EMAIL" ]]; then
+  echo "Error: user.email is not configured in environment or git config. Please set git config user.email." >&2
+  exit 1
+fi
 
 export RUNTIME_DIR
 export RAVN_GIT_BARE_CLONE_ROOT

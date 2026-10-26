@@ -50,3 +50,8 @@ jobs:
           test -x dest/opt/ravn-git-bare-clone/ravn-git-bare-clone
           test -f dest/opt/ravn-git-bare-clone/runtime/lib/global_fn.sh
           test -L dest/usr/bin/ravn-git-bare-clone
+          test -L dest/usr/bin/git-bare-clone
+          test -L dest/usr/bin/git-create-worktree
+          test -L dest/usr/bin/git-issue-worktree
+          test -f dest/opt/ravn-git-bare-clone/runtime/completion/git-bare-clone.bash
+          test -f dest/opt/ravn-git-bare-clone/runtime/completion/_git-bare-clone
