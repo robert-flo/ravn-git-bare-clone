@@ -2,7 +2,7 @@
 set -euo pipefail
 
 tests_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export TMPDIR="${TMPDIR:-/home/omarchy/.cache/ravn-piloto/tmp}"
+export TMPDIR="${TMPDIR:-/tmp}"
 mkdir -p "$TMPDIR"
 export GIT_CONFIG_GLOBAL=/dev/null
 
