@@ -5,6 +5,7 @@ Launcher y runtime modular de clonación bare y gestión de worktrees para Arch 
 ## Características
 
 - **Clonación bare y worktrees automáticos:** Clona repositorios remotos en `$BARE_HOME/<repo>.git` y genera worktrees con upstream tracking para las ramas remotas no-default en `$WORKTREES_HOME/<repo>/<branch>`.
+- **Auto-detección de Home Repo:** Si `BARE_HOME` y `WORKTREES_HOME` no están definidos en el entorno y existe `proyecto.yml` en el directorio actual o en algún padre (`$hr_root`), usa `$hr_root/.bares` y `$hr_root/repos`; fuera de un Home Repo mantiene `/z/bare` y `/z/repos`. Se puede sobreescribir por CLI con `-b, --bare-dir` y `-w, --worktrees-dir`.
 - **Master / rama default libre:** La rama default (`origin/HEAD`, e.g. `main` o `master`) no se checkoutea automáticamente para permitir trabajo en paralelo sin colisiones entre agentes o tareas.
 - **Módulos create e issue:** Permite crear nuevos worktrees vinculados a ramas o issues de GitHub con tracking upstream.
 - **Sincronización idempotente:** Al re-ejecutar sobre repositorios existentes (`clone` o `sync`), actualiza referencias remotas (`git fetch origin`) y crea worktrees únicamente para las ramas remotas faltantes.
@@ -69,8 +70,8 @@ ravn-git-bare-clone
 ravn-git-bare-clone clone git@github.com:user/repo.git
 ravn-git-bare-clone clone robert-flo/alpha
 
-# Clonar con directorio personalizado de worktrees
-ravn-git-bare-clone clone -w /ruta/custom user/repo
+# Clonar con directorios personalizados de bare y worktrees
+ravn-git-bare-clone clone -b /ruta/bare -w /ruta/custom user/repo
 
 # Clonar lotes de repositorios por grupo
 ravn-git-bare-clone clone \

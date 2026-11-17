@@ -29,7 +29,8 @@ export GIT_AUTHOR_EMAIL="test@example.com"
 export GIT_COMMITTER_NAME="Test"
 export GIT_COMMITTER_EMAIL="test@example.com"
 
-mkdir -p "$FAKE_BIN" "$TEST_ROOT/home"
+mkdir -p "$FAKE_BIN" "$TEST_ROOT/home" "$TEST_ROOT/outside" "$TEST_ROOT/hr/nested/sub"
+touch "$TEST_ROOT/hr/proyecto.yml"
 
 cat > "$FAKE_BIN/mkdir" << 'EOF_STUB'
 #!/usr/bin/env bash
@@ -49,11 +50,12 @@ env -u BARE_HOME -u WORKTREES_HOME HOME="$TEST_ROOT/home" \
   "$BIN" clone -h > "$TEST_ROOT/clone-help.out" 2>&1 || true
 grep -Fq '/z/bare/<repo>.git' "$TEST_ROOT/clone-help.out" || fail "clone help does not show /z/bare/<repo>.git"
 grep -Fq '/z/repos/<repo>' "$TEST_ROOT/clone-help.out" || fail "clone help does not show /z/repos/<repo>"
+grep -Fq -- '-b, --bare-dir' "$TEST_ROOT/clone-help.out" || fail "clone help does not show -b, --bare-dir"
 
-# Without env vars, the first directories it creates are /z/bare and /z/repos.
-if env -u BARE_HOME -u WORKTREES_HOME \
+# Without env vars and outside a Home Repo, the first directories it creates are /z/bare and /z/repos.
+if (cd "$TEST_ROOT/outside" && env -u BARE_HOME -u WORKTREES_HOME \
   PATH="$FAKE_BIN:$PATH" HOME="$TEST_ROOT/home" MKDIR_LOG="$MKDIR_LOG" \
-  "$BIN" robert-flo/alpha > "$TEST_ROOT/run.out" 2>&1; then
+  "$BIN" robert-flo/alpha > "$TEST_ROOT/run.out" 2>&1); then
   fail "expected the mkdir stub to stop the run"
 fi
 [[ -s $MKDIR_LOG ]] || fail "ravn-git-bare-clone did not try to create its base directories"
@@ -63,9 +65,9 @@ read -r first_mkdir < "$MKDIR_LOG"
 
 # Also test with explicit 'clone' subcommand:
 : > "$MKDIR_LOG"
-if env -u BARE_HOME -u WORKTREES_HOME \
+if (cd "$TEST_ROOT/outside" && env -u BARE_HOME -u WORKTREES_HOME \
   PATH="$FAKE_BIN:$PATH" HOME="$TEST_ROOT/home" MKDIR_LOG="$MKDIR_LOG" \
-  "$BIN" clone robert-flo/alpha > "$TEST_ROOT/run2.out" 2>&1; then
+  "$BIN" clone robert-flo/alpha > "$TEST_ROOT/run2.out" 2>&1); then
   fail "expected the mkdir stub to stop the run"
 fi
 read -r first_mkdir < "$MKDIR_LOG"
@@ -74,12 +76,59 @@ read -r first_mkdir < "$MKDIR_LOG"
 
 # --group still overrides only the worktrees base; bare stays on the default.
 : > "$MKDIR_LOG"
-env -u BARE_HOME -u WORKTREES_HOME \
+(cd "$TEST_ROOT/outside" && env -u BARE_HOME -u WORKTREES_HOME \
   PATH="$FAKE_BIN:$PATH" HOME="$TEST_ROOT/home" MKDIR_LOG="$MKDIR_LOG" \
   "$BIN" --group /z/repos/pj-demo robert-flo/alpha \
-  > "$TEST_ROOT/group.out" 2>&1 || true
+  > "$TEST_ROOT/group.out" 2>&1) || true
 read -r first_mkdir < "$MKDIR_LOG"
 [[ $first_mkdir == '-p /z/bare /z/repos/pj-demo' ]] ||
   fail "unexpected --group directories: '$first_mkdir'"
+
+# Inside a Home Repo (CWD has proyecto.yml), uses .bares and repos.
+: > "$MKDIR_LOG"
+(cd "$TEST_ROOT/hr" && env -u BARE_HOME -u WORKTREES_HOME \
+  PATH="$FAKE_BIN:$PATH" HOME="$TEST_ROOT/home" MKDIR_LOG="$MKDIR_LOG" \
+  "$BIN" clone robert-flo/alpha > "$TEST_ROOT/hr-cwd.out" 2>&1) || true
+read -r first_mkdir < "$MKDIR_LOG"
+[[ $first_mkdir == "-p $TEST_ROOT/hr/.bares $TEST_ROOT/hr/repos" ]] ||
+  fail "unexpected Home Repo directories from CWD: '$first_mkdir'"
+
+# Inside a Home Repo subdirectory, walks up to proyecto.yml.
+: > "$MKDIR_LOG"
+(cd "$TEST_ROOT/hr/nested/sub" && env -u BARE_HOME -u WORKTREES_HOME \
+  PATH="$FAKE_BIN:$PATH" HOME="$TEST_ROOT/home" MKDIR_LOG="$MKDIR_LOG" \
+  "$BIN" clone robert-flo/alpha > "$TEST_ROOT/hr-sub.out" 2>&1) || true
+read -r first_mkdir < "$MKDIR_LOG"
+[[ $first_mkdir == "-p $TEST_ROOT/hr/.bares $TEST_ROOT/hr/repos" ]] ||
+  fail "unexpected Home Repo directories from subdirectory: '$first_mkdir'"
+
+# Env vars BARE_HOME and WORKTREES_HOME override Home Repo auto-detection.
+: > "$MKDIR_LOG"
+(cd "$TEST_ROOT/hr/nested/sub" && env \
+  BARE_HOME="/env/bare" WORKTREES_HOME="/env/repos" \
+  PATH="$FAKE_BIN:$PATH" HOME="$TEST_ROOT/home" MKDIR_LOG="$MKDIR_LOG" \
+  "$BIN" clone robert-flo/alpha > "$TEST_ROOT/hr-env.out" 2>&1) || true
+read -r first_mkdir < "$MKDIR_LOG"
+[[ $first_mkdir == '-p /env/bare /env/repos' ]] ||
+  fail "expected env vars to override Home Repo: '$first_mkdir'"
+
+# CLI flags -b/--bare-dir and -w/--worktrees-dir override both Home Repo and env vars.
+: > "$MKDIR_LOG"
+(cd "$TEST_ROOT/hr/nested/sub" && env \
+  BARE_HOME="/env/bare" WORKTREES_HOME="/env/repos" \
+  PATH="$FAKE_BIN:$PATH" HOME="$TEST_ROOT/home" MKDIR_LOG="$MKDIR_LOG" \
+  "$BIN" clone -b /cli/bare -w /cli/repos robert-flo/alpha > "$TEST_ROOT/hr-cli.out" 2>&1) || true
+read -r first_mkdir < "$MKDIR_LOG"
+[[ $first_mkdir == '-p /cli/bare /cli/repos' ]] ||
+  fail "expected -b and -w flags to override env and Home Repo: '$first_mkdir'"
+
+# Long flags --bare-dir and --worktrees-dir also work.
+: > "$MKDIR_LOG"
+(cd "$TEST_ROOT/hr" && env -u BARE_HOME -u WORKTREES_HOME \
+  PATH="$FAKE_BIN:$PATH" HOME="$TEST_ROOT/home" MKDIR_LOG="$MKDIR_LOG" \
+  "$BIN" clone --bare-dir /long/bare --worktrees-dir /long/repos robert-flo/alpha > "$TEST_ROOT/hr-long.out" 2>&1) || true
+read -r first_mkdir < "$MKDIR_LOG"
+[[ $first_mkdir == '-p /long/bare /long/repos' ]] ||
+  fail "expected --bare-dir and --worktrees-dir flags to override Home Repo: '$first_mkdir'"
 
 printf 'ravn-git-bare-clone defaults /z: passed\n'

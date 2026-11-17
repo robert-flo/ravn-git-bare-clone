@@ -44,6 +44,8 @@ bash -c '
 ' _ "$ROOT_DIR" > "$TEST_ROOT/bash-clone-opts"
 require_output "$TEST_ROOT/bash-clone-opts" '-h'
 require_output "$TEST_ROOT/bash-clone-opts" '--help'
+require_output "$TEST_ROOT/bash-clone-opts" '-b'
+require_output "$TEST_ROOT/bash-clone-opts" '--bare-dir'
 require_output "$TEST_ROOT/bash-clone-opts" '-w'
 require_output "$TEST_ROOT/bash-clone-opts" '--group'
 
