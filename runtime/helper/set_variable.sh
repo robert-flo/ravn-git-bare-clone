@@ -5,8 +5,27 @@ helper_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly RUNTIME_DIR="${RUNTIME_DIR:-$(cd "$helper_dir/.." && pwd)}"
 readonly RAVN_GIT_BARE_CLONE_ROOT="${RAVN_GIT_BARE_CLONE_ROOT:-$(cd "$RUNTIME_DIR/.." && pwd)}"
 
-BARE_HOME="${BARE_HOME:-/z/bare}"
-WORKTREES_HOME="${WORKTREES_HOME:-/z/repos}"
+if [[ -z "${BARE_HOME:-}" || -z "${WORKTREES_HOME:-}" ]]; then
+  _gbc_hr_root=""
+  _gbc_dir="$PWD"
+  while true; do
+    if [[ -f "$_gbc_dir/proyecto.yml" ]]; then
+      _gbc_hr_root="$_gbc_dir"
+      break
+    fi
+    [[ "$_gbc_dir" == "/" ]] && break
+    _gbc_dir="$(dirname "$_gbc_dir")"
+  done
+
+  if [[ -n "$_gbc_hr_root" ]]; then
+    BARE_HOME="${BARE_HOME:-${_gbc_hr_root%/}/.bares}"
+    WORKTREES_HOME="${WORKTREES_HOME:-${_gbc_hr_root%/}/repos}"
+  else
+    BARE_HOME="${BARE_HOME:-/z/bare}"
+    WORKTREES_HOME="${WORKTREES_HOME:-/z/repos}"
+  fi
+  unset _gbc_hr_root _gbc_dir
+fi
 
 USER_NAME="${USER_NAME:-${GIT_AUTHOR_NAME:-${NAME:-}}}"
 if [[ -z "$USER_NAME" ]]; then

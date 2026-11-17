@@ -29,8 +29,8 @@ show_help() {
     ravn-git-bare-clone clone --group <path> <repos...>
 
   LOCATIONS
-    Bare objects:  $BARE_HOME/<repo>.git   (default: /z/bare/<repo>.git)
-    Worktrees:     $WORKTREES_HOME/<repo>  (default: /z/repos/<repo>)
+    Bare objects:  $BARE_HOME/<repo>.git   (default: /z/bare/<repo>.git, or <home-repo>/.bares/<repo>.git)
+    Worktrees:     $WORKTREES_HOME/<repo>  (default: /z/repos/<repo>, or <home-repo>/repos/<repo>)
 
   COMMANDS
 HELP_EOF
@@ -41,7 +41,7 @@ HELP_EOF
 
   EXAMPLES
     ravn-git-bare-clone clone git@github.com:user/repo.git
-    ravn-git-bare-clone clone -w /custom/path user/repo
+    ravn-git-bare-clone clone -b /custom/bare -w /custom/path user/repo
     ravn-git-bare-clone clone --group /z/repos/proj user/repo1 user/repo2
 
   ENVIRONMENT VARIABLES

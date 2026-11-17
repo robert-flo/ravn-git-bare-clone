@@ -43,7 +43,7 @@ readonly ICON_BRANCH=""
 
 usage() {
   echo ""
-  echo -e "${WHITE}Usage:${NC} ravn-git-bare-clone clone ${GRAY}[-h] [-v] [-w <path>]${NC} ${CYAN}<repository>${NC}"
+  echo -e "${WHITE}Usage:${NC} ravn-git-bare-clone clone ${GRAY}[-h] [-v] [-b <path>] [-w <path>]${NC} ${CYAN}<repository>${NC}"
   echo -e "       ravn-git-bare-clone clone ${GRAY}[options]${NC} ${CYAN}--group <path> <repository>... [--group <path> <repository>...]${NC}"
   echo ""
   echo -e "  Clone a bare git repo and create worktrees for non-default remote branches."
@@ -53,12 +53,13 @@ usage() {
   echo -e "  non-default remote branches that are still missing locally."
   echo ""
   echo -e "${WHITE}Locations${NC} ${GRAY}(override via env vars or flags):${NC}"
-  echo -e "  ${GRAY}Bare objects:${NC}  \$BARE_HOME/<repo>.git   ${GRAY}(default: /z/bare/<repo>.git)${NC}"
-  echo -e "  ${GRAY}Worktrees:${NC}     \$WORKTREES_HOME/<repo>  ${GRAY}(default: /z/repos/<repo>)${NC}"
+  echo -e "  ${GRAY}Bare objects:${NC}  \$BARE_HOME/<repo>.git   ${GRAY}(default: /z/bare/<repo>.git, or <home-repo>/.bares/<repo>.git)${NC}"
+  echo -e "  ${GRAY}Worktrees:${NC}     \$WORKTREES_HOME/<repo>  ${GRAY}(default: /z/repos/<repo>, or <home-repo>/repos/<repo>)${NC}"
   echo ""
   echo -e "${WHITE}Options:${NC}"
   echo -e "  ${CYAN}-h, --help${NC}           Print this help and exit"
   echo -e "  ${CYAN}-v, --verbose${NC}        Print script debug info"
+  echo -e "  ${CYAN}-b, --bare-dir${NC}       Override bare repositories base directory"
   echo -e "  ${CYAN}-w, --worktrees-dir${NC}  Override worktrees base directory"
   echo -e "  ${CYAN}--group <path> <repos...>${NC}  Clone one or more repositories into a worktrees group"
   echo ""
@@ -91,6 +92,11 @@ parse_params() {
       -h | --help) usage ;;
       -v | --verbose) set -x ;;
       --no-color) : ;;
+      -b | --bare-dir)
+        [[ -n ${2-} && ${2} != -* ]] || die "$1 requires a bare dir path"
+        BARE_HOME="${2-}"
+        shift
+        ;;
       -w | --worktrees-dir)
         [[ -n ${2-} && ${2} != -* ]] || die "$1 requires a worktrees path"
         worktrees_base="${2-}"
