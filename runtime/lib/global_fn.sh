@@ -20,8 +20,8 @@ readonly _GLOBAL_FN_SOURCED=1
 # │ Colors & Styling                                                             │
 # └──────────────────────────────────────────────────────────────────────────────┘
 
-# Colors and icons use a terminal-friendly presentation by default. Disable
-# styling automatically for pipes, Docker/CI output, dumb terminals, or when
+# Colors use a terminal-friendly presentation by default. Disable ANSI escape
+# sequences automatically for pipes, Docker/CI output, dumb terminals, or when
 # the caller explicitly requests the NO_COLOR convention.
 if [[ -t 1 && ${TERM:-dumb} != "dumb" && -z ${NO_COLOR:-} ]]; then
   readonly RED=$'\033[0;31m'
@@ -34,20 +34,6 @@ if [[ -t 1 && ${TERM:-dumb} != "dumb" && -z ${NO_COLOR:-} ]]; then
   readonly GRAY=$'\033[0;90m'
   readonly LIGHT_GRAY=$'\033[0;37m'
   readonly NC=$'\033[0m'
-  readonly ICON_CHECK="✓"
-  readonly ICON_CROSS="✗"
-  readonly ICON_ARROW="→"
-  readonly ICON_WARN="⚠"
-  readonly ICON_INFO="ℹ"
-  # Glifos Nerd Font del catálogo viejo de RaVN para los encabezados de
-  # sección que imprimen bin/git-* (git-bare-clone, git-create-worktree...).
-  readonly ICON_KEY=$'\U000f030b'
-  readonly ICON_LOCK=$'\U000f033e'
-  readonly ICON_GIT=$'\ue702'
-  readonly ICON_GITHUB=$'\uf09b'
-  readonly ICON_GEAR=$'\U000f0493'
-  readonly ICON_ROCKET=$'\U000f14de'
-  readonly ICON_PACKAGE=$'\U000f03d7'
 else
   readonly RED=""
   readonly GREEN=""
@@ -59,6 +45,30 @@ else
   readonly GRAY=""
   readonly LIGHT_GRAY=""
   readonly NC=""
+fi
+
+# UTF-8 icons stay enabled even without a TTY (pipes/subprocesses), falling
+# back to plain ASCII only when NO_COLOR is set or TERM=dumb.
+# shellcheck disable=SC2034
+if [[ ${TERM:-} != "dumb" && -z ${NO_COLOR:-} ]]; then
+  readonly ICON_CHECK="✓"
+  readonly ICON_CROSS="✗"
+  readonly ICON_ARROW="→"
+  readonly ICON_WARN="⚠"
+  readonly ICON_INFO="ℹ"
+  readonly ICON_KEY="🔑"
+  readonly ICON_LOCK="🔒"
+  readonly ICON_GIT="🌿"
+  readonly ICON_GITHUB="🐙"
+  readonly ICON_GEAR="⚙️"
+  readonly ICON_ROCKET="🚀"
+  readonly ICON_PACKAGE="📦"
+  readonly ICON_FOLDER="📁"
+  readonly ICON_BRANCH="🌿"
+  readonly ICON_CLONE="📥"
+  readonly ICON_PUSH="⬆️"
+  readonly ICON_ISSUE="🎫"
+else
   readonly ICON_CHECK="[OK]"
   readonly ICON_CROSS="[ERROR]"
   readonly ICON_ARROW=">"
@@ -71,6 +81,11 @@ else
   readonly ICON_GEAR="[GEAR]"
   readonly ICON_ROCKET="[ROCKET]"
   readonly ICON_PACKAGE="[PACKAGE]"
+  readonly ICON_FOLDER="[FOLDER]"
+  readonly ICON_BRANCH="[BRANCH]"
+  readonly ICON_CLONE="[CLONE]"
+  readonly ICON_PUSH="[PUSH]"
+  readonly ICON_ISSUE="[ISSUE]"
 fi
 
 # RavnVM workflow icons retained as reusable public constants.

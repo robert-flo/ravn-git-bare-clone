@@ -33,10 +33,6 @@ declare -i batch_mode=0
 declare -a batch_worktrees=()
 declare -a batch_repositories=()
 
-readonly ICON_FOLDER="󰉋"
-readonly ICON_CLONE="󰑌"
-readonly ICON_BRANCH=""
-
 # ┌──────────────────────────────────────────────────────────────────────────────┐
 # │ Usage                                                                        │
 # └──────────────────────────────────────────────────────────────────────────────┘
