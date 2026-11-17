@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Launcher and command dispatcher for ravn-git-bare-clone.
+# Launcher and command dispatcher for ravn-wt.
 
 set -Eeuo pipefail
 

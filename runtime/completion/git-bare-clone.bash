@@ -36,4 +36,4 @@ _git_bare_clone_completion() {
   fi
 }
 
-complete -F _git_bare_clone_completion ravn-git-bare-clone git-bare-clone
+complete -F _git_bare_clone_completion ravn-wt ravn-git-bare-clone git-bare-clone

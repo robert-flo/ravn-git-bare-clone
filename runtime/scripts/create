@@ -35,7 +35,7 @@ cleanup() {
 
 usage() {
   echo ""
-  echo -e "${WHITE}Usage:${NC} ravn-git-bare-clone create ${GRAY}[-h] [-v] [-r <repo>] [-b <branch>] [-B <base>] [-p <prefix>] [-N]${NC} ${CYAN}<path>${NC}"
+  echo -e "${WHITE}Usage:${NC} ravn-wt create ${GRAY}[-h] [-v] [-r <repo>] [-b <branch>] [-B <base>] [-p <prefix>] [-N]${NC} ${CYAN}<path>${NC}"
   echo ""
   echo -e "  Create a new git worktree with optional upstream tracking."
   echo ""

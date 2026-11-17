@@ -35,7 +35,7 @@ cleanup() {
 
 usage() {
   echo ""
-  echo -e "${WHITE}Usage:${NC} ravn-git-bare-clone issue ${GRAY}[-h] [-v] [-r <repo>] [-B <base>] [-p <prefix>]${NC} ${CYAN}<issue> <slug>${NC}"
+  echo -e "${WHITE}Usage:${NC} ravn-wt issue ${GRAY}[-h] [-v] [-r <repo>] [-B <base>] [-p <prefix>]${NC} ${CYAN}<issue> <slug>${NC}"
   echo ""
   echo -e "  Link a GitHub issue to a new git worktree."
   echo ""
@@ -134,6 +134,8 @@ elif [[ -x "$root_dir/bin/git-create-worktree" ]]; then
   create_cmd="$root_dir/bin/git-create-worktree"
 elif command -v git-create-worktree &>/dev/null; then
   create_cmd="git-create-worktree"
+elif command -v ravn-wt &>/dev/null; then
+  create_cmd="ravn-wt create"
 elif command -v ravn-git-bare-clone &>/dev/null; then
   create_cmd="ravn-git-bare-clone create"
 fi

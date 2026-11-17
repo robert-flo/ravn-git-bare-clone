@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# User-facing help command module for ravn-git-bare-clone.
+# User-facing help command module for ravn-wt.
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
   set -Eeuo pipefail
   module_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,14 +19,14 @@ show_help() {
   print_section "󰋖 Help and Usage"
 
   cat << 'HELP_EOF'
-  ravn-git-bare-clone clones Git repositories as bare repositories and sets up
+  ravn-wt clones Git repositories as bare repositories and sets up
   worktrees for all remote branches.
 
   BASIC USE
-    ravn-git-bare-clone                   Open interactive menu
-    ravn-git-bare-clone <command> [args]  Run command directly
-    ravn-git-bare-clone clone [options] <repo>
-    ravn-git-bare-clone clone --group <path> <repos...>
+    ravn-wt                   Open interactive menu
+    ravn-wt <command> [args]  Run command directly
+    ravn-wt clone [options] <repo>
+    ravn-wt clone --group <path> <repos...>
 
   LOCATIONS
     Bare objects:  $BARE_HOME/<repo>.git   (default: /z/bare/<repo>.git, or <home-repo>/.bares/<repo>.git)
@@ -40,9 +40,9 @@ HELP_EOF
   cat << 'HELP_EOF'
 
   EXAMPLES
-    ravn-git-bare-clone clone git@github.com:user/repo.git
-    ravn-git-bare-clone clone -b /custom/bare -w /custom/path user/repo
-    ravn-git-bare-clone clone --group /z/repos/proj user/repo1 user/repo2
+    ravn-wt clone git@github.com:user/repo.git
+    ravn-wt clone -b /custom/bare -w /custom/path user/repo
+    ravn-wt clone --group /z/repos/proj user/repo1 user/repo2
 
   ENVIRONMENT VARIABLES
     BARE_HOME       Ruta base para bare repos (<repo>.git)

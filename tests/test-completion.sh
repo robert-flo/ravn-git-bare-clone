@@ -20,7 +20,7 @@ BASH_OUTPUT="$TEST_ROOT/bash-output"
 bash -c '
   set -Eeuo pipefail
   source "$1/runtime/completion/git-bare-clone.bash"
-  COMP_WORDS=(ravn-git-bare-clone "")
+  COMP_WORDS=(ravn-wt "")
   COMP_CWORD=1
   _git_bare_clone_completion
   printf "%s\n" "${COMPREPLY[@]}"
@@ -37,7 +37,7 @@ done
 bash -c '
   set -Eeuo pipefail
   source "$1/runtime/completion/git-bare-clone.bash"
-  COMP_WORDS=(ravn-git-bare-clone clone "")
+  COMP_WORDS=(ravn-wt clone "")
   COMP_CWORD=2
   _git_bare_clone_completion
   printf "%s\n" "${COMPREPLY[@]}"
@@ -80,14 +80,14 @@ if command -v zsh > /dev/null 2>&1; then
     _arguments() { print -r -- "arguments:$*"; }
     source "$1"
   ' _ "$ROOT_DIR/runtime/completion/_git-bare-clone" > "$TEST_ROOT/zsh-commands-output"
-  grep -Fqx 'describe:ravn-git-bare-clone command' "$TEST_ROOT/zsh-commands-output" ||
+  grep -Fqx 'describe:ravn-wt command' "$TEST_ROOT/zsh-commands-output" ||
     fail 'Zsh completion did not describe commands'
   grep -Fq 'clone:Clone bare repo' "$TEST_ROOT/zsh-commands-output" ||
     fail 'Zsh completion did not describe clone'
 
   zsh -fc '
     CURRENT=3
-    words=(ravn-git-bare-clone clone "")
+    words=(ravn-wt clone "")
     _describe() { print -r -- "unexpected describe call"; }
     _arguments() { print -r -- "arguments:$*"; }
     source "$1"

@@ -2,7 +2,6 @@
 # Real-git coverage: a new worktree starts from the repo's default branch
 # (origin/HEAD), not from a hardcoded origin/main. The origin's default is
 # master and it has no main branch. git-bare-clone records origin/HEAD.
-# Worktrees for default branches are kept free in bare repositories.
 
 set -euo pipefail
 
@@ -58,8 +57,8 @@ git --git-dir="$BARE" rev-parse --verify -q origin/HEAD > /dev/null ||
 
 WT_ROOT="$WORKTREES_HOME/demo"
 
-# Default branch (master) must not have an automatic worktree
-[[ ! -e "$WT_ROOT/master" ]] || fail "master worktree should be kept free"
+# Default branch (master) and non-default branch (dev) both have worktrees
+[[ -d "$WT_ROOT/master" ]] || fail "master worktree should exist"
 [[ -d "$WT_ROOT/dev" ]] || fail "dev worktree should exist"
 
 # git-create-worktree without -B: starts at the default branch (master).
