@@ -47,11 +47,12 @@ jobs:
         run: |
           mkdir -p dest
           make DESTDIR=dest install
-          test -x dest/opt/ravn-git-bare-clone/ravn-git-bare-clone
-          test -f dest/opt/ravn-git-bare-clone/runtime/lib/global_fn.sh
+          test -x dest/opt/ravn-wt/ravn-wt
+          test -f dest/opt/ravn-wt/runtime/lib/global_fn.sh
+          test -L dest/usr/bin/ravn-wt
           test -L dest/usr/bin/ravn-git-bare-clone
           test -L dest/usr/bin/git-bare-clone
           test -L dest/usr/bin/git-create-worktree
           test -L dest/usr/bin/git-issue-worktree
-          test -f dest/opt/ravn-git-bare-clone/runtime/completion/git-bare-clone.bash
-          test -f dest/opt/ravn-git-bare-clone/runtime/completion/_git-bare-clone
+          test -f dest/opt/ravn-wt/runtime/completion/git-bare-clone.bash
+          test -f dest/opt/ravn-wt/runtime/completion/_git-bare-clone
