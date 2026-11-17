@@ -16,7 +16,7 @@ if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
 fi
 
 show_help() {
-  print_section "󰋖 Help and Usage"
+  print_section "${ICON_INFO} Help and Usage"
 
   cat << 'HELP_EOF'
   ravn-wt clones Git repositories as bare repositories and sets up

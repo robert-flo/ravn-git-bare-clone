@@ -21,10 +21,6 @@ fi
 # shellcheck disable=SC1091
 source "$RUNTIME_DIR/lib/lifecycle.sh"
 
-# Domain-specific icons
-readonly ICON_FOLDER="󰉋"
-readonly ICON_PUSH="󰕒"
-
 cleanup() {
   trap - SIGINT SIGTERM ERR EXIT
 }

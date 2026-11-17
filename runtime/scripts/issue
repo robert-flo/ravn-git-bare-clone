@@ -21,10 +21,6 @@ fi
 # shellcheck disable=SC1091
 source "$RUNTIME_DIR/lib/lifecycle.sh"
 
-readonly ICON_BRANCH="󰘾"
-readonly ICON_FOLDER="󰉋"
-readonly ICON_ISSUE=""
-
 cleanup() {
   trap - SIGINT SIGTERM ERR EXIT
 }
