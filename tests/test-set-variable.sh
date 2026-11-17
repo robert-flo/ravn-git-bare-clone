@@ -58,56 +58,43 @@ set -e
 [[ $rc -eq 0 ]] || fail "set_variable.sh should succeed with USER_NAME and USER_EMAIL set: $output"
 [[ "$output" == *"OK"* ]] || fail "expected OK from successful source: $output"
 
+run_set_variable() {
+  local workdir=$1
+  shift
+  (
+    cd "$workdir" &&
+      env -i PATH="$PATH" HOME="$TEST_ROOT/home" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
+        USER_NAME="Alice" USER_EMAIL="alice@example.com" "$@" \
+        bash -s "$REPO_ROOT" << 'EOF'
+source "$1/runtime/helper/set_variable.sh"
+printf '%s|%s\n' "$BARE_HOME" "$WORKTREES_HOME"
+EOF
+  )
+}
+
 # Test 4: Outside a Home Repo, defaults to /z/bare and /z/repos
-output=$(
-  cd "$TEST_ROOT/empty" && \
-  env -i PATH="$PATH" HOME="$TEST_ROOT/home" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
-    USER_NAME="Alice" USER_EMAIL="alice@example.com" \
-    bash -c 'source "$1/runtime/helper/set_variable.sh" && printf "%s|%s\n" "$BARE_HOME" "$WORKTREES_HOME"' _ "$REPO_ROOT"
-)
+output=$(run_set_variable "$TEST_ROOT/empty")
 [[ "$output" == "/z/bare|/z/repos" ]] || fail "expected /z/bare|/z/repos outside Home Repo, got: $output"
 
 # Test 5: Inside a Home Repo (proyecto.yml in CWD), uses .bares and repos
 mkdir -p "$TEST_ROOT/hr/nested/sub"
 touch "$TEST_ROOT/hr/proyecto.yml"
-output=$(
-  cd "$TEST_ROOT/hr" && \
-  env -i PATH="$PATH" HOME="$TEST_ROOT/home" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
-    USER_NAME="Alice" USER_EMAIL="alice@example.com" \
-    bash -c 'source "$1/runtime/helper/set_variable.sh" && printf "%s|%s\n" "$BARE_HOME" "$WORKTREES_HOME"' _ "$REPO_ROOT"
-)
+output=$(run_set_variable "$TEST_ROOT/hr")
 [[ "$output" == "$TEST_ROOT/hr/.bares|$TEST_ROOT/hr/repos" ]] ||
   fail "expected Home Repo paths from CWD, got: $output"
 
 # Test 6: Inside a subdirectory of a Home Repo, walks up to proyecto.yml
-output=$(
-  cd "$TEST_ROOT/hr/nested/sub" && \
-  env -i PATH="$PATH" HOME="$TEST_ROOT/home" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
-    USER_NAME="Alice" USER_EMAIL="alice@example.com" \
-    bash -c 'source "$1/runtime/helper/set_variable.sh" && printf "%s|%s\n" "$BARE_HOME" "$WORKTREES_HOME"' _ "$REPO_ROOT"
-)
+output=$(run_set_variable "$TEST_ROOT/hr/nested/sub")
 [[ "$output" == "$TEST_ROOT/hr/.bares|$TEST_ROOT/hr/repos" ]] ||
   fail "expected Home Repo paths from subdirectory, got: $output"
 
 # Test 7: Explicit env vars take precedence over Home Repo auto-detection
-output=$(
-  cd "$TEST_ROOT/hr/nested/sub" && \
-  env -i PATH="$PATH" HOME="$TEST_ROOT/home" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
-    USER_NAME="Alice" USER_EMAIL="alice@example.com" \
-    BARE_HOME="/custom/bare" WORKTREES_HOME="/custom/repos" \
-    bash -c 'source "$1/runtime/helper/set_variable.sh" && printf "%s|%s\n" "$BARE_HOME" "$WORKTREES_HOME"' _ "$REPO_ROOT"
-)
+output=$(run_set_variable "$TEST_ROOT/hr/nested/sub" BARE_HOME="/custom/bare" WORKTREES_HOME="/custom/repos")
 [[ "$output" == "/custom/bare|/custom/repos" ]] ||
   fail "expected explicit env vars to win over Home Repo, got: $output"
 
 # Test 8: Partial env override keeps explicit var and auto-detects the other
-output=$(
-  cd "$TEST_ROOT/hr/nested/sub" && \
-  env -i PATH="$PATH" HOME="$TEST_ROOT/home" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
-    USER_NAME="Alice" USER_EMAIL="alice@example.com" \
-    BARE_HOME="/custom/bare" \
-    bash -c 'source "$1/runtime/helper/set_variable.sh" && printf "%s|%s\n" "$BARE_HOME" "$WORKTREES_HOME"' _ "$REPO_ROOT"
-)
+output=$(run_set_variable "$TEST_ROOT/hr/nested/sub" BARE_HOME="/custom/bare")
 [[ "$output" == "/custom/bare|$TEST_ROOT/hr/repos" ]] ||
   fail "expected partial override (BARE_HOME only) to keep BARE_HOME and auto-detect WORKTREES_HOME, got: $output"
 
