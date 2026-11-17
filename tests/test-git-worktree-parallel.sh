@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-# Parallel worktrees and default branch (master) availability test.
+# Parallel worktrees and default branch (master) worktree creation test.
 #
 # Validates:
-# 1. ravn-git-bare-clone clone leaves origin/HEAD (master) free without automatic checkout.
+# 1. ravn-git-bare-clone clone creates worktrees for all remote branches, including origin/HEAD (master).
 # 2. Multiple worktrees (e.g. agent-1 and agent-2) can be created from origin/HEAD and operate concurrently.
 # 3. Worktrees operate independently without cross-interference on commits/files.
-# 4. master is 100% available for direct checkout / worktree creation by an agent without
-#    encountering "fatal: 'master' is already checked out at ...".
+# 4. Duplicate checkout of master fails with git's already checked out error.
 
 set -euo pipefail
 
@@ -55,8 +54,8 @@ MASTER_SHA=$(git -C "$SEED" rev-parse master)
 readonly MASTER_SHA
 
 # 2. Clone bare repository via ravn-git-bare-clone clone
-"$REPO_ROOT/ravn-git-bare-clone" clone "$ORIGIN" > "$TEST_ROOT/clone.out" 2>&1 ||
-  fail "ravn-git-bare-clone clone failed: $(cat "$TEST_ROOT/clone.out")"
+"$REPO_ROOT/ravn-wt" clone "$ORIGIN" > "$TEST_ROOT/clone.out" 2>&1 ||
+  fail "ravn-wt clone failed: $(cat "$TEST_ROOT/clone.out")"
 
 BARE="$BARE_HOME/demo.git"
 WT_ROOT="$WORKTREES_HOME/demo"
@@ -65,20 +64,19 @@ WT_ROOT="$WORKTREES_HOME/demo"
 [[ $(git --git-dir="$BARE" symbolic-ref refs/remotes/origin/HEAD) == refs/remotes/origin/master ]] ||
   fail "origin/HEAD not set to origin/master"
 
-# 3. Verify that the default branch (master) does NOT have an automatic worktree
-[[ ! -e "$WT_ROOT/master" ]] || fail "master worktree should be kept free"
-[[ -d "$WT_ROOT/dev" ]] || fail "dev worktree should exist for non-default branch"
+# 3. Verify that both master and dev have automatic worktrees
+[[ -d "$WT_ROOT/master" ]] || fail "master worktree should exist"
+[[ -d "$WT_ROOT/dev" ]] || fail "dev worktree should exist"
+[[ $(git -C "$WT_ROOT/master" branch --show-current) == "master" ]] ||
+  fail "master worktree is not on master branch"
+[[ $(git -C "$WT_ROOT/master" rev-parse HEAD) == "$MASTER_SHA" ]] ||
+  fail "master worktree SHA does not match initial master SHA"
 
-# Verify git worktree list does not list master
-if git -C "$BARE" worktree list | grep -Fq '[master]'; then
-  fail "master branch should not be checked out in worktree list"
-fi
-
-# 4. Create two worktrees in parallel (agent-1 and agent-2) using ravn-git-bare-clone create
-(cd "$WT_ROOT/dev" && "$REPO_ROOT/ravn-git-bare-clone" create -N -p "" agent-1) \
+# 4. Create two worktrees in parallel (agent-1 and agent-2) using ravn-wt create
+(cd "$WT_ROOT/dev" && "$REPO_ROOT/ravn-wt" create -N -p "" agent-1) \
   > "$TEST_ROOT/create-agent-1.out" 2>&1 || fail "create agent-1 failed: $(cat "$TEST_ROOT/create-agent-1.out")"
 
-(cd "$WT_ROOT/dev" && "$REPO_ROOT/ravn-git-bare-clone" create -N -p "" agent-2) \
+(cd "$WT_ROOT/dev" && "$REPO_ROOT/ravn-wt" create -N -p "" agent-2) \
   > "$TEST_ROOT/create-agent-2.out" 2>&1 || fail "create agent-2 failed: $(cat "$TEST_ROOT/create-agent-2.out")"
 
 [[ -d "$WT_ROOT/agent-1" ]] || fail "agent-1 worktree directory missing"
@@ -104,28 +102,16 @@ git -C "$WT_ROOT/agent-2" commit -q -m "commit in agent-2"
 [[ -f "$WT_ROOT/agent-2/agent2.txt" ]] || fail "agent2.txt missing in agent-2"
 [[ ! -f "$WT_ROOT/agent-1/agent2.txt" ]] || fail "agent2.txt leaked to agent-1"
 
-# 6. Confirm explicitly that master is 100% available for checkout without collision
-# If master had been checked out or locked, this would throw:
-# "fatal: 'master' is already checked out at ..."
-git -C "$BARE" worktree add "$WT_ROOT/master" master > "$TEST_ROOT/master-add.out" 2>&1 ||
-  fail "checkout of master failed: $(cat "$TEST_ROOT/master-add.out")"
-
-[[ -d "$WT_ROOT/master" ]] || fail "master worktree directory was not created"
-[[ $(git -C "$WT_ROOT/master" branch --show-current) == "master" ]] ||
-  fail "master worktree is not on master branch"
-[[ $(git -C "$WT_ROOT/master" rev-parse HEAD) == "$MASTER_SHA" ]] ||
-  fail "master worktree SHA does not match initial master SHA"
-
-# Confirm independent work on master works smoothly
+# 6. Confirm independent work on master works smoothly
 echo "master update" >> "$WT_ROOT/master/README.md"
 git -C "$WT_ROOT/master" commit -q -am "update directly on master"
 
-# Finally, demonstrate that attempting to checkout master again now that it is checked out
-# triggers the exact collision error that keeping it free originally avoided.
+# Finally, demonstrate that attempting to checkout master again in a second worktree
+# triggers git's collision error.
 if git -C "$BARE" worktree add "$WT_ROOT/master-duplicate" master > "$TEST_ROOT/collision.out" 2>&1; then
   fail "duplicate checkout of master should have failed with fatal collision error"
 fi
 grep -Eq "already (used by worktree|checked out)" "$TEST_ROOT/collision.out" ||
   fail "expected 'already used by worktree' or 'already checked out' in error output: $(cat "$TEST_ROOT/collision.out")"
 
-printf 'parallel worktrees and free master: passed\n'
+printf 'parallel worktrees and master worktree: passed\n'

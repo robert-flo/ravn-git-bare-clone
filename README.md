@@ -1,12 +1,11 @@
-# ravn-git-bare-clone
+# ravn-wt (`ravn-git-bare-clone`)
 
 Launcher y runtime modular de clonación bare y gestión de worktrees para Arch Linux (Arquetipo A).
 
 ## Características
 
-- **Clonación bare y worktrees automáticos:** Clona repositorios remotos en `$BARE_HOME/<repo>.git` y genera worktrees con upstream tracking para las ramas remotas no-default en `$WORKTREES_HOME/<repo>/<branch>`.
+- **Clonación bare y worktrees automáticos:** Clona repositorios remotos en `$BARE_HOME/<repo>.git` y genera worktrees con upstream tracking para todas las ramas remotas (incluida la rama default, e.g. `master` o `main`) en `$WORKTREES_HOME/<repo>/<branch>`.
 - **Auto-detección de Home Repo:** Si `BARE_HOME` y `WORKTREES_HOME` no están definidos en el entorno y existe `proyecto.yml` en el directorio actual o en algún padre (`$hr_root`), usa `$hr_root/.bares` y `$hr_root/repos`; fuera de un Home Repo mantiene `/z/bare` y `/z/repos`. Se puede sobreescribir por CLI con `-b, --bare-dir` y `-w, --worktrees-dir`.
-- **Master / rama default libre:** La rama default (`origin/HEAD`, e.g. `main` o `master`) no se checkoutea automáticamente para permitir trabajo en paralelo sin colisiones entre agentes o tareas.
 - **Módulos create e issue:** Permite crear nuevos worktrees vinculados a ramas o issues de GitHub con tracking upstream.
 - **Sincronización idempotente:** Al re-ejecutar sobre repositorios existentes (`clone` o `sync`), actualiza referencias remotas (`git fetch origin`) y crea worktrees únicamente para las ramas remotas faltantes.
 - **Soporte de lotes:** Permite clonar múltiples repositorios organizados en grupos mediante `--group <ruta> <repos...>`.
@@ -17,7 +16,7 @@ Launcher y runtime modular de clonación bare y gestión de worktrees para Arch 
 
 ```text
 ├── Makefile
-├── ravn-git-bare-clone           # Launcher raíz ejecutable
+├── ravn-wt                       # Launcher raíz ejecutable
 ├── bin/                          # Wrappers de compatibilidad
 │   ├── git-bare-clone
 │   ├── git-create-worktree
@@ -60,36 +59,36 @@ Launcher y runtime modular de clonación bare y gestión de worktrees para Arch 
 Ejecutá el launcher sin argumentos para abrir el menú interactivo:
 
 ```bash
-ravn-git-bare-clone
+ravn-wt
 ```
 
 ### Comandos Directos
 
 ```bash
-# Clonar repositorio individual (master queda libre)
-ravn-git-bare-clone clone git@github.com:user/repo.git
-ravn-git-bare-clone clone robert-flo/alpha
+# Clonar repositorio individual
+ravn-wt clone git@github.com:user/repo.git
+ravn-wt clone robert-flo/alpha
 
 # Clonar con directorios personalizados de bare y worktrees
-ravn-git-bare-clone clone -b /ruta/bare -w /ruta/custom user/repo
+ravn-wt clone -b /ruta/bare -w /ruta/custom user/repo
 
 # Clonar lotes de repositorios por grupo
-ravn-git-bare-clone clone \
+ravn-wt clone \
   --group /z/repos/core org/api org/web \
   --group /z/repos/tools org/cli
 
 # Sincronizar ramas remotas faltantes
-ravn-git-bare-clone sync org/repo
+ravn-wt sync org/repo
 
 # Crear un worktree nuevo con tracking upstream
-ravn-git-bare-clone create nueva-feature
+ravn-wt create nueva-feature
 
 # Crear un worktree vinculado a un issue de GitHub
-ravn-git-bare-clone issue 42 fix-login
+ravn-wt issue 42 fix-login
 
 # Ver ayuda
-ravn-git-bare-clone help
-ravn-git-bare-clone clone -h
+ravn-wt help
+ravn-wt clone -h
 ```
 
 ### Comandos de Compatibilidad
@@ -102,56 +101,10 @@ git-create-worktree <nombre>
 git-issue-worktree <issue> <slug>
 ```
 
-## Limpieza de Worktrees Antiguos de Master / Rama Default
-
-En versiones anteriores a esta arquitectura modular, el clonador creaba automáticamente un worktree para la rama por defecto remota (`origin/HEAD`, habitualmente `master` o `main`) en `$WORKTREES_HOME/<repo>/<master>`.
-
-### El problema histórico
-
-Git no permite que una misma rama esté activa (*checked out*) en más de un worktree a la vez. Cuando un repositorio bare mantenía un worktree automático permanente en `master`, cualquier intento posterior por parte de agentes concurrentes, scripts de CI o desarrolladores de hacer checkout directo de `master` o crear un worktree derivado de ella fallaba con el error:
-
-```text
-fatal: 'master' is already checked out at '/ruta/a/worktrees/repo/master'
-```
-
-Al dejar libre la rama default (`origin/HEAD`) durante la clonación inicial y en `sync`, múltiples agentes pueden bifurcar ramas nuevas en paralelo (`agent-1`, `agent-2`) basadas en `origin/HEAD` sin bloquearse entre sí, y la rama `master` queda disponible para cuando realmente se requiera un checkout directo.
-
-### Procedimiento paso a paso para repositorios existentes
-
-Si tenés repositorios clonados con versiones previas donde el worktree de `master` o `main` aún existe, podés liberarlo siguiendo estos pasos:
-
-1. **Listar los worktrees existentes:**
-   Desde el repositorio bare o cualquiera de sus worktrees:
-   ```bash
-   git worktree list
-   ```
-
-2. **Verificar que no hayan cambios sin commitear:**
-   Ingresá al worktree antiguo de `master` (o `main`) y confirmá que el estado esté limpio:
-   ```bash
-   cd /z/repos/<repo>/master
-   git status
-   ```
-   Si hay cambios pendientes o stashes, commitealos o respaldalos en una rama separada antes de continuar.
-
-3. **Eliminar el worktree antiguo de master:**
-   Remové el worktree con el comando de Git:
-   ```bash
-   git worktree remove /z/repos/<repo>/master
-   ```
-   *(Alternativa si el directorio fue borrado manualmente o está desincronizado: `rm -rf /z/repos/<repo>/master && git worktree prune`).*
-
-4. **Confirmar que master queda libre:**
-   Verificá nuevamente con:
-   ```bash
-   git worktree list
-   ```
-   La rama `master` (o `main`) ya no aparecerá asociada a ninguna ruta de trabajo, quedando 100% disponible para que agentes concurrentes trabajen en ramas paralelas o hagan checkout directo cuando sea necesario.
-
 ## Instalación
 
 ```bash
-make install PREFIX=/opt/ravn-git-bare-clone BINDIR=/usr/bin
+make install PREFIX=/opt/ravn-wt BINDIR=/usr/bin
 ```
 
 ## Pruebas y Validación

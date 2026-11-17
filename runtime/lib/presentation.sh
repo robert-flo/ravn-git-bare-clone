@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Shared terminal presentation for ravn-git-bare-clone.
+# Shared terminal presentation for ravn-wt.
 if [[ ${_PRESENTATION_SOURCED:-0} -eq 1 ]]; then
   # shellcheck disable=SC2317
   return 0 2> /dev/null || exit 0

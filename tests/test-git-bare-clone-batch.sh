@@ -8,7 +8,7 @@ trap 'rm -rf "$TEST_ROOT"' EXIT
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
-BIN="$REPO_ROOT/ravn-git-bare-clone"
+BIN="$REPO_ROOT/ravn-wt"
 readonly BIN
 FAKE_BIN="$TEST_ROOT/bin"
 readonly FAKE_BIN

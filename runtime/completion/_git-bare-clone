@@ -1,4 +1,4 @@
-#compdef ravn-git-bare-clone git-bare-clone
+#compdef ravn-wt ravn-git-bare-clone git-bare-clone
 
 _git_bare_clone_completion() {
   local completion_dir="${${(%):-%x}:A:h}"
@@ -20,7 +20,7 @@ _git_bare_clone_completion() {
   done < "$catalog_file"
 
   if ((CURRENT == 2)); then
-    _describe 'ravn-git-bare-clone command' command_specs
+    _describe 'ravn-wt command' command_specs
     return
   fi
 

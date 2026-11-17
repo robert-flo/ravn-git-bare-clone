@@ -1,4 +1,4 @@
-PREFIX ?= /opt/ravn-git-bare-clone
+PREFIX ?= /opt/ravn-wt
 BINDIR ?= /usr/bin
 DESTDIR ?=
 
@@ -7,7 +7,7 @@ DESTDIR ?=
 all: check
 
 help:
-	@echo "ravn-git-bare-clone targets:"
+	@echo "ravn-wt targets:"
 	@echo "  install  Install files to $(DESTDIR)$(PREFIX) and symlink to $(DESTDIR)$(BINDIR)"
 	@echo "  test     Run the test suite"
 	@echo "  lint     Run shellcheck on all bash scripts"
@@ -20,7 +20,7 @@ install:
 	install -d "$(DESTDIR)$(PREFIX)/runtime/completion"
 	install -d "$(DESTDIR)$(PREFIX)/bin"
 	install -d "$(DESTDIR)$(BINDIR)"
-	install -m 755 ravn-git-bare-clone "$(DESTDIR)$(PREFIX)/ravn-git-bare-clone"
+	install -m 755 ravn-wt "$(DESTDIR)$(PREFIX)/ravn-wt"
 	install -m 644 runtime/commands.tsv "$(DESTDIR)$(PREFIX)/runtime/commands.tsv"
 	install -m 755 runtime/helper/set_variable.sh "$(DESTDIR)$(PREFIX)/runtime/helper/set_variable.sh"
 	install -m 644 runtime/lib/global_fn.sh "$(DESTDIR)$(PREFIX)/runtime/lib/global_fn.sh"
@@ -39,13 +39,14 @@ install:
 	install -m 755 bin/git-bare-clone "$(DESTDIR)$(PREFIX)/bin/git-bare-clone"
 	install -m 755 bin/git-create-worktree "$(DESTDIR)$(PREFIX)/bin/git-create-worktree"
 	install -m 755 bin/git-issue-worktree "$(DESTDIR)$(PREFIX)/bin/git-issue-worktree"
-	ln -sf "$(PREFIX)/ravn-git-bare-clone" "$(DESTDIR)$(BINDIR)/ravn-git-bare-clone"
+	ln -sf "$(PREFIX)/ravn-wt" "$(DESTDIR)$(BINDIR)/ravn-wt"
+	ln -sf "$(PREFIX)/ravn-wt" "$(DESTDIR)$(BINDIR)/ravn-git-bare-clone"
 	ln -sf "$(PREFIX)/bin/git-bare-clone" "$(DESTDIR)$(BINDIR)/git-bare-clone"
 	ln -sf "$(PREFIX)/bin/git-create-worktree" "$(DESTDIR)$(BINDIR)/git-create-worktree"
 	ln -sf "$(PREFIX)/bin/git-issue-worktree" "$(DESTDIR)$(BINDIR)/git-issue-worktree"
 
 lint:
-	shellcheck ravn-git-bare-clone \
+	shellcheck ravn-wt \
 		bin/* \
 		runtime/completion/*.bash \
 		runtime/helper/*.sh \
