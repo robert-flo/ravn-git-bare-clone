@@ -63,7 +63,7 @@ output=$(
   cd "$TEST_ROOT/empty" && \
   env -i PATH="$PATH" HOME="$TEST_ROOT/home" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
     USER_NAME="Alice" USER_EMAIL="alice@example.com" \
-    bash -c 'source "'"$REPO_ROOT"'/runtime/helper/set_variable.sh" && printf "%s|%s\n" "$BARE_HOME" "$WORKTREES_HOME"'
+    bash -c 'source "$1/runtime/helper/set_variable.sh" && printf "%s|%s\n" "$BARE_HOME" "$WORKTREES_HOME"' _ "$REPO_ROOT"
 )
 [[ "$output" == "/z/bare|/z/repos" ]] || fail "expected /z/bare|/z/repos outside Home Repo, got: $output"
 
@@ -74,7 +74,7 @@ output=$(
   cd "$TEST_ROOT/hr" && \
   env -i PATH="$PATH" HOME="$TEST_ROOT/home" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
     USER_NAME="Alice" USER_EMAIL="alice@example.com" \
-    bash -c 'source "'"$REPO_ROOT"'/runtime/helper/set_variable.sh" && printf "%s|%s\n" "$BARE_HOME" "$WORKTREES_HOME"'
+    bash -c 'source "$1/runtime/helper/set_variable.sh" && printf "%s|%s\n" "$BARE_HOME" "$WORKTREES_HOME"' _ "$REPO_ROOT"
 )
 [[ "$output" == "$TEST_ROOT/hr/.bares|$TEST_ROOT/hr/repos" ]] ||
   fail "expected Home Repo paths from CWD, got: $output"
@@ -84,7 +84,7 @@ output=$(
   cd "$TEST_ROOT/hr/nested/sub" && \
   env -i PATH="$PATH" HOME="$TEST_ROOT/home" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
     USER_NAME="Alice" USER_EMAIL="alice@example.com" \
-    bash -c 'source "'"$REPO_ROOT"'/runtime/helper/set_variable.sh" && printf "%s|%s\n" "$BARE_HOME" "$WORKTREES_HOME"'
+    bash -c 'source "$1/runtime/helper/set_variable.sh" && printf "%s|%s\n" "$BARE_HOME" "$WORKTREES_HOME"' _ "$REPO_ROOT"
 )
 [[ "$output" == "$TEST_ROOT/hr/.bares|$TEST_ROOT/hr/repos" ]] ||
   fail "expected Home Repo paths from subdirectory, got: $output"
@@ -95,7 +95,7 @@ output=$(
   env -i PATH="$PATH" HOME="$TEST_ROOT/home" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
     USER_NAME="Alice" USER_EMAIL="alice@example.com" \
     BARE_HOME="/custom/bare" WORKTREES_HOME="/custom/repos" \
-    bash -c 'source "'"$REPO_ROOT"'/runtime/helper/set_variable.sh" && printf "%s|%s\n" "$BARE_HOME" "$WORKTREES_HOME"'
+    bash -c 'source "$1/runtime/helper/set_variable.sh" && printf "%s|%s\n" "$BARE_HOME" "$WORKTREES_HOME"' _ "$REPO_ROOT"
 )
 [[ "$output" == "/custom/bare|/custom/repos" ]] ||
   fail "expected explicit env vars to win over Home Repo, got: $output"
@@ -106,7 +106,7 @@ output=$(
   env -i PATH="$PATH" HOME="$TEST_ROOT/home" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
     USER_NAME="Alice" USER_EMAIL="alice@example.com" \
     BARE_HOME="/custom/bare" \
-    bash -c 'source "'"$REPO_ROOT"'/runtime/helper/set_variable.sh" && printf "%s|%s\n" "$BARE_HOME" "$WORKTREES_HOME"'
+    bash -c 'source "$1/runtime/helper/set_variable.sh" && printf "%s|%s\n" "$BARE_HOME" "$WORKTREES_HOME"' _ "$REPO_ROOT"
 )
 [[ "$output" == "/custom/bare|$TEST_ROOT/hr/repos" ]] ||
   fail "expected partial override (BARE_HOME only) to keep BARE_HOME and auto-detect WORKTREES_HOME, got: $output"
