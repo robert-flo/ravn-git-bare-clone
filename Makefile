@@ -29,6 +29,7 @@ install:
 	install -m 644 runtime/lib/dispatch.sh "$(DESTDIR)$(PREFIX)/runtime/lib/dispatch.sh"
 	install -m 644 runtime/lib/lifecycle.sh "$(DESTDIR)$(PREFIX)/runtime/lib/lifecycle.sh"
 	install -m 644 runtime/lib/presentation.sh "$(DESTDIR)$(PREFIX)/runtime/lib/presentation.sh"
+	install -m 644 runtime/lib/prune.sh "$(DESTDIR)$(PREFIX)/runtime/lib/prune.sh"
 	install -m 755 runtime/scripts/clone "$(DESTDIR)$(PREFIX)/runtime/scripts/clone"
 	install -m 755 runtime/scripts/sync "$(DESTDIR)$(PREFIX)/runtime/scripts/sync"
 	install -m 755 runtime/scripts/create "$(DESTDIR)$(PREFIX)/runtime/scripts/create"
