@@ -125,8 +125,8 @@ if grep -q 'clone --bare git@github.com:robert-flo/existing.git' "$FAKE_GIT_LOG"
   printf 'expected existing bare repository not to be re-cloned\n' >&2
   exit 1
 fi
-grep -q 'fetch origin' "$FAKE_GIT_LOG" || {
-  printf 'expected existing bare repository to be fetched for sync\n' >&2
+grep -q 'fetch --prune origin' "$FAKE_GIT_LOG" || {
+  printf 'expected existing bare repository to be fetched with --prune for sync\n' >&2
   exit 1
 }
 test -d "$GROUP_ONE/existing/main"
@@ -164,7 +164,7 @@ assert_fail_fast() {
 }
 
 assert_fail_fast 'clone --bare git@github.com:robert-flo/failing-clone.git' 'failing-clone' 'after-clone-failure'
-assert_fail_fast 'fetch origin' 'failing-fetch' 'after-fetch-failure'
+assert_fail_fast 'fetch --prune origin' 'failing-fetch' 'after-fetch-failure'
 assert_fail_fast 'worktree add main main' 'failing-worktree' 'after-worktree-failure'
 assert_fail_fast '--set-upstream-to=origin/main main' 'failing-tracking' 'after-tracking-failure'
 

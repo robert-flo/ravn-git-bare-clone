@@ -20,6 +20,8 @@ if ! source "$RUNTIME_DIR/lib/presentation.sh"; then
 fi
 # shellcheck disable=SC1091
 source "$RUNTIME_DIR/lib/lifecycle.sh"
+# shellcheck disable=SC1091
+source "$RUNTIME_DIR/lib/prune.sh"
 
 # ┌──────────────────────────────────────────────────────────────────────────────┐
 # │ Configuration                                                                │
@@ -296,9 +298,12 @@ clone_repository() {
   local bare_dir=""
   local worktrees_dir=""
   local bare_existed=0
+  local total_steps=5
   local -a branches=()
   local -a created=()
   local -a skipped=()
+  local -a pruned=()
+  local -a prune_skipped=()
 
   repo_url="$(normalize_repository "$repository")"
   repo_name="$(basename "$repo_url" .git)"
@@ -317,6 +322,7 @@ clone_repository() {
 
   if [[ -d $bare_dir ]]; then
     bare_existed=1
+    total_steps=6
   fi
 
   print_header "${ICON_GIT} git-bare-clone"
@@ -325,7 +331,7 @@ clone_repository() {
   print_info "Bare:        ${GRAY}$bare_dir${NC}"
   print_info "Worktrees:   ${GRAY}$worktrees_dir${NC}"
   if ((bare_existed == 1)); then
-    print_info "Mode:        ${WHITE}sync existing${NC} ${GRAY}(fetch + missing worktrees)${NC}"
+    print_info "Mode:        ${WHITE}sync existing${NC} ${GRAY}(fetch --prune + prune orphans + missing worktrees)${NC}"
   else
     print_info "Mode:        ${WHITE}fresh clone${NC}"
   fi
@@ -335,24 +341,24 @@ clone_repository() {
   # └──────────────────────────────────────────────────────────────────────────────┘
 
   if ((bare_existed == 0)); then
-    # ── Step 1/5: Clone bare ──────────────────────────────────────────────────────
-    print_section "${ICON_CLONE} [1/5] Cloning bare repository"
+    # ── Step 1: Clone bare ────────────────────────────────────────────────────────
+    print_section "${ICON_CLONE} [1/${total_steps}] Cloning bare repository"
     git clone --bare "$repo_url" "$bare_dir"
     print_success "Bare repo cloned to ${GRAY}$bare_dir${NC}"
   else
-    # ── Step 1/5: Reuse bare ──────────────────────────────────────────────────────
-    print_section "${ICON_CLONE} [1/5] Reusing existing bare repository"
+    # ── Step 1: Reuse bare ────────────────────────────────────────────────────────
+    print_section "${ICON_CLONE} [1/${total_steps}] Reusing existing bare repository"
     print_success "Bare repo already at ${GRAY}$bare_dir${NC}"
   fi
 
-  # ── Step 2/5: Configure fetch refspec ────────────────────────────────────────
-  print_section "${ICON_GEAR} [2/5] Configuring remote fetch refs"
+  # ── Step 2: Configure fetch refspec ──────────────────────────────────────────
+  print_section "${ICON_GEAR} [2/${total_steps}] Configuring remote fetch refs"
   ensure_fetch_refspec "$bare_dir"
   print_success "Fetch refspec configured"
 
-  # ── Step 3/5: Fetch all remote tracking refs ─────────────────────────────────
-  print_section "${ICON_ARROW} [3/5] Fetching remote tracking refs"
-  git --git-dir="$bare_dir" fetch origin
+  # ── Step 3: Fetch all remote tracking refs ───────────────────────────────────
+  print_section "${ICON_ARROW} [3/${total_steps}] Fetching remote tracking refs"
+  git --git-dir="$bare_dir" fetch --prune origin
   print_success "All remote refs fetched"
   # origin/HEAD = default branch; git-create-worktree uses it as its base.
   # An empty remote has no HEAD: warn and keep going.
@@ -362,13 +368,19 @@ clone_repository() {
     print_warn "Could not determine the remote default branch (origin/HEAD not set)"
   fi
 
-  # ── Step 4/5: Create worktrees directory with .git pointer ───────────────────
-  print_section "${ICON_FOLDER} [4/5] Setting up worktrees directory"
+  # ── Step 4: Create worktrees directory with .git pointer ─────────────────────
+  print_section "${ICON_FOLDER} [4/${total_steps}] Setting up worktrees directory"
   ensure_worktrees_root "$bare_dir" "$worktrees_dir"
   print_success "Worktrees root ready at ${GRAY}$worktrees_dir${NC}"
 
-  # ── Step 5/5: Create missing worktrees with upstream tracking ────────────────
-  print_section "${ICON_BRANCH} [5/5] Creating worktrees for missing remote branches"
+  if ((bare_existed == 1)); then
+    # ── Step 5/6: Prune orphan worktrees and branches ──────────────────────────
+    print_section "${ICON_CLEANING} [5/${total_steps}] Pruning orphan worktrees and branches"
+    prune_orphan_worktrees "$bare_dir" "$worktrees_dir" pruned prune_skipped
+  fi
+
+  # ── Final step: Create missing worktrees with upstream tracking ──────────────
+  print_section "${ICON_BRANCH} [${total_steps}/${total_steps}] Creating worktrees for missing remote branches"
   create_missing_worktrees "$bare_dir" "$worktrees_dir" created skipped
 
   mapfile -t branches < <(list_remote_branches "$bare_dir")
@@ -377,6 +389,12 @@ clone_repository() {
   # │ Summary                                                                      │
   # └──────────────────────────────────────────────────────────────────────────────┘
 
+  if ((${#pruned[@]} > 0)); then
+    print_success "Pruned ${#pruned[@]} orphan(s): ${pruned[*]}"
+  fi
+  if ((${#prune_skipped[@]} > 0)); then
+    print_warn "Skipped ${#prune_skipped[@]} orphan(s): ${prune_skipped[*]}"
+  fi
   if ((${#created[@]} > 0)); then
     print_success "Created ${#created[@]} worktree(s): ${created[*]}"
   else
