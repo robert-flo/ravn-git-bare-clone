@@ -145,6 +145,8 @@ prune_orphan_worktrees() {
       fi
 
       git -C "$worktrees_dir" worktree remove "$norm_wt"
+      # Use -D (not -d) on clean [gone] branches so squash-merged branches—whose
+      # original tip is not an ancestor of the base branch—are still removed.
       git --git-dir="$bare_dir" branch -D "$branch" > /dev/null
       cleanup_empty_parent_dirs "$norm_root" "$norm_wt"
       pruned_ref+=("$branch")

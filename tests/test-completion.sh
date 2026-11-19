@@ -48,6 +48,28 @@ require_output "$TEST_ROOT/bash-clone-opts" '-b'
 require_output "$TEST_ROOT/bash-clone-opts" '--bare-dir'
 require_output "$TEST_ROOT/bash-clone-opts" '-w'
 require_output "$TEST_ROOT/bash-clone-opts" '--group'
+require_output "$TEST_ROOT/bash-clone-opts" '--no-prune'
+
+bash -c '
+  set -Eeuo pipefail
+  source "$1/runtime/completion/git-bare-clone.bash"
+  COMP_WORDS=(ravn-wt sync "")
+  COMP_CWORD=2
+  _git_bare_clone_completion
+  printf "%s\n" "${COMPREPLY[@]}"
+' _ "$ROOT_DIR" > "$TEST_ROOT/bash-sync-opts"
+require_output "$TEST_ROOT/bash-sync-opts" '--group'
+require_output "$TEST_ROOT/bash-sync-opts" '--no-prune'
+
+# Verify --help documents --no-prune, safety guards, and -D squash-merge rationale
+"$ROOT_DIR/ravn-wt" clone --help > "$TEST_ROOT/clone-help.out"
+grep -Fq -- '--no-prune' "$TEST_ROOT/clone-help.out" || fail 'clone --help missing --no-prune'
+grep -Fq -- 'dirty' "$TEST_ROOT/clone-help.out" || fail 'clone --help missing dirty guard'
+grep -Fq -- 'locked' "$TEST_ROOT/clone-help.out" || fail 'clone --help missing locked guard'
+grep -Fq -- 'current-dir' "$TEST_ROOT/clone-help.out" || fail 'clone --help missing current-dir guard'
+grep -Fq -- 'branch -D' "$TEST_ROOT/clone-help.out" || fail 'clone --help missing branch -D rationale'
+"$ROOT_DIR/ravn-wt" sync --help > "$TEST_ROOT/sync-help.out"
+grep -Fq -- '--no-prune' "$TEST_ROOT/sync-help.out" || fail 'sync --help missing --no-prune'
 
 bash -c '
   set -Eeuo pipefail
@@ -92,8 +114,18 @@ if command -v zsh > /dev/null 2>&1; then
     _arguments() { print -r -- "arguments:$*"; }
     source "$1"
   ' _ "$ROOT_DIR/runtime/completion/_git-bare-clone" > "$TEST_ROOT/zsh-options-output"
-  grep -Fq -- '-w --worktrees-dir --group' "$TEST_ROOT/zsh-options-output" ||
-    fail 'Zsh completion did not suggest clone options'
+  grep -Fq -- '-w --worktrees-dir --group --no-prune' "$TEST_ROOT/zsh-options-output" ||
+    fail 'Zsh completion did not suggest clone options including --no-prune'
+
+  zsh -fc '
+    CURRENT=3
+    words=(ravn-wt sync "")
+    _describe() { print -r -- "unexpected describe call"; }
+    _arguments() { print -r -- "arguments:$*"; }
+    source "$1"
+  ' _ "$ROOT_DIR/runtime/completion/_git-bare-clone" > "$TEST_ROOT/zsh-sync-options-output"
+  grep -Fq -- '--no-prune' "$TEST_ROOT/zsh-sync-options-output" ||
+    fail 'Zsh completion did not suggest sync --no-prune option'
 else
   printf 'SKIP: zsh is unavailable; syntax check not run\n'
 fi
