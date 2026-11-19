@@ -27,6 +27,7 @@ show_help() {
     ravn-wt <command> [args]  Run command directly
     ravn-wt clone [options] <repo>
     ravn-wt clone --group <path> <repos...>
+    ravn-wt sync [--no-prune] <repo>
 
   LOCATIONS
     Bare objects:  $BARE_HOME/<repo>.git   (default: /z/bare/<repo>.git, or <home-repo>/.bares/<repo>.git)
@@ -43,6 +44,8 @@ HELP_EOF
     ravn-wt clone git@github.com:user/repo.git
     ravn-wt clone -b /custom/bare -w /custom/path user/repo
     ravn-wt clone --group /z/repos/proj user/repo1 user/repo2
+    ravn-wt sync user/repo
+    ravn-wt sync --no-prune user/repo
 
   ENVIRONMENT VARIABLES
     BARE_HOME       Ruta base para bare repos (<repo>.git)

@@ -20,6 +20,8 @@ if ! source "$RUNTIME_DIR/lib/presentation.sh"; then
 fi
 # shellcheck disable=SC1091
 source "$RUNTIME_DIR/lib/lifecycle.sh"
+# shellcheck disable=SC1091
+source "$RUNTIME_DIR/lib/prune.sh"
 
 # ┌──────────────────────────────────────────────────────────────────────────────┐
 # │ Configuration                                                                │
@@ -30,6 +32,7 @@ WORKTREES_HOME="${WORKTREES_HOME:-/z/repos}"
 worktrees_base=""
 declare -a args=()
 declare -i batch_mode=0
+declare -i no_prune=0
 declare -a batch_worktrees=()
 declare -a batch_repositories=()
 
@@ -39,30 +42,37 @@ declare -a batch_repositories=()
 
 usage() {
   echo ""
-  echo -e "${WHITE}Usage:${NC} ravn-wt clone ${GRAY}[-h] [-v] [-b <path>] [-w <path>]${NC} ${CYAN}<repository>${NC}"
+  echo -e "${WHITE}Usage:${NC} ravn-wt clone ${GRAY}[-h] [-v] [-b <path>] [-w <path>] [--no-prune]${NC} ${CYAN}<repository>${NC}"
   echo -e "       ravn-wt clone ${GRAY}[options]${NC} ${CYAN}--group <path> <repository>... [--group <path> <repository>...]${NC}"
   echo ""
   echo -e "  Clone a bare git repo and create all worktrees with upstream tracking."
-  echo -e "  If the bare already exists, fetch origin and create worktrees only for"
-  echo -e "  remote branches that are still missing locally."
+  echo -e "  If the bare already exists, fetch origin (--prune), prune clean orphan"
+  echo -e "  worktrees and local [gone] branches (unless --no-prune is set), and"
+  echo -e "  create worktrees for remote branches that are still missing locally."
   echo ""
   echo -e "${WHITE}Locations${NC} ${GRAY}(override via env vars or flags):${NC}"
   echo -e "  ${GRAY}Bare objects:${NC}  \$BARE_HOME/<repo>.git   ${GRAY}(default: /z/bare/<repo>.git, or <home-repo>/.bares/<repo>.git)${NC}"
   echo -e "  ${GRAY}Worktrees:${NC}     \$WORKTREES_HOME/<repo>  ${GRAY}(default: /z/repos/<repo>, or <home-repo>/repos/<repo>)${NC}"
   echo ""
   echo -e "${WHITE}Options:${NC}"
-  echo -e "  ${CYAN}-h, --help${NC}           Print this help and exit"
-  echo -e "  ${CYAN}-v, --verbose${NC}        Print script debug info"
-  echo -e "  ${CYAN}-b, --bare-dir${NC}       Override bare repositories base directory"
-  echo -e "  ${CYAN}-w, --worktrees-dir${NC}  Override worktrees base directory"
+  echo -e "  ${CYAN}-h, --help${NC}                 Print this help and exit"
+  echo -e "  ${CYAN}-v, --verbose${NC}              Print script debug info"
+  echo -e "  ${CYAN}-b, --bare-dir${NC}             Override bare repositories base directory"
+  echo -e "  ${CYAN}-w, --worktrees-dir${NC}        Override worktrees base directory"
+  echo -e "  ${CYAN}--no-prune${NC}                 Skip pruning orphan worktrees and branches on sync"
   echo -e "  ${CYAN}--group <path> <repos...>${NC}  Clone one or more repositories into a worktrees group"
   echo ""
-  echo -e "${WHITE}Batch behavior:${NC} existing repositories are refreshed (fetch + missing"
-  echo -e "  worktrees); a clone/sync failure stops the batch."
+  echo -e "${WHITE}Pruning behavior:${NC} on existing repos, local branches whose origin/* upstream"
+  echo -e "  is gone are pruned automatically (with git branch -D for squash-merge"
+  echo -e "  compatibility). Safety guards skip dirty, locked, current-dir, outside-root,"
+  echo -e "  local-only, and default-branch worktrees. Pass --no-prune to keep orphans."
+  echo -e "${WHITE}Batch behavior:${NC} existing repositories are refreshed (fetch --prune + prune"
+  echo -e "  orphans unless --no-prune + missing worktrees); a failure stops the batch."
   echo -e "${WHITE}Examples:${NC}"
   echo -e "  ravn-wt clone --group /z/repos/<proyecto> acme/api acme/web"
   echo -e "  ravn-wt clone --group /z/repos/app owner/api owner/web --group /z/repos owner/tools"
-  echo -e "  ravn-wt clone owner/repo   ${GRAY}# re-run to pick up new remote branches${NC}"
+  echo -e "  ravn-wt clone owner/repo             ${GRAY}# re-run to sync new branches and prune orphans${NC}"
+  echo -e "  ravn-wt sync --no-prune owner/repo   ${GRAY}# fetch + new worktrees without pruning orphans${NC}"
   echo ""
   exit 0
 }
@@ -78,6 +88,7 @@ parse_params() {
 
   worktrees_base="$WORKTREES_HOME"
   batch_mode=0
+  no_prune=0
   batch_worktrees=()
   batch_repositories=()
 
@@ -86,6 +97,7 @@ parse_params() {
       -h | --help) usage ;;
       -v | --verbose) set -x ;;
       --no-color) : ;;
+      --no-prune) no_prune=1 ;;
       -b | --bare-dir)
         [[ -n ${2-} && ${2} != -* ]] || die "$1 requires a bare dir path"
         BARE_HOME="${2-}"
@@ -296,9 +308,12 @@ clone_repository() {
   local bare_dir=""
   local worktrees_dir=""
   local bare_existed=0
+  local total_steps=5
   local -a branches=()
   local -a created=()
   local -a skipped=()
+  local -a pruned=()
+  local -a prune_skipped=()
 
   repo_url="$(normalize_repository "$repository")"
   repo_name="$(basename "$repo_url" .git)"
@@ -317,6 +332,9 @@ clone_repository() {
 
   if [[ -d $bare_dir ]]; then
     bare_existed=1
+    if ((no_prune == 0)); then
+      total_steps=6
+    fi
   fi
 
   print_header "${ICON_GIT} git-bare-clone"
@@ -325,7 +343,11 @@ clone_repository() {
   print_info "Bare:        ${GRAY}$bare_dir${NC}"
   print_info "Worktrees:   ${GRAY}$worktrees_dir${NC}"
   if ((bare_existed == 1)); then
-    print_info "Mode:        ${WHITE}sync existing${NC} ${GRAY}(fetch + missing worktrees)${NC}"
+    if ((no_prune == 0)); then
+      print_info "Mode:        ${WHITE}sync existing${NC} ${GRAY}(fetch --prune + prune orphans + missing worktrees)${NC}"
+    else
+      print_info "Mode:        ${WHITE}sync existing${NC} ${GRAY}(fetch --prune + missing worktrees; --no-prune)${NC}"
+    fi
   else
     print_info "Mode:        ${WHITE}fresh clone${NC}"
   fi
@@ -335,24 +357,24 @@ clone_repository() {
   # └──────────────────────────────────────────────────────────────────────────────┘
 
   if ((bare_existed == 0)); then
-    # ── Step 1/5: Clone bare ──────────────────────────────────────────────────────
-    print_section "${ICON_CLONE} [1/5] Cloning bare repository"
+    # ── Step 1: Clone bare ────────────────────────────────────────────────────────
+    print_section "${ICON_CLONE} [1/${total_steps}] Cloning bare repository"
     git clone --bare "$repo_url" "$bare_dir"
     print_success "Bare repo cloned to ${GRAY}$bare_dir${NC}"
   else
-    # ── Step 1/5: Reuse bare ──────────────────────────────────────────────────────
-    print_section "${ICON_CLONE} [1/5] Reusing existing bare repository"
+    # ── Step 1: Reuse bare ────────────────────────────────────────────────────────
+    print_section "${ICON_CLONE} [1/${total_steps}] Reusing existing bare repository"
     print_success "Bare repo already at ${GRAY}$bare_dir${NC}"
   fi
 
-  # ── Step 2/5: Configure fetch refspec ────────────────────────────────────────
-  print_section "${ICON_GEAR} [2/5] Configuring remote fetch refs"
+  # ── Step 2: Configure fetch refspec ──────────────────────────────────────────
+  print_section "${ICON_GEAR} [2/${total_steps}] Configuring remote fetch refs"
   ensure_fetch_refspec "$bare_dir"
   print_success "Fetch refspec configured"
 
-  # ── Step 3/5: Fetch all remote tracking refs ─────────────────────────────────
-  print_section "${ICON_ARROW} [3/5] Fetching remote tracking refs"
-  git --git-dir="$bare_dir" fetch origin
+  # ── Step 3: Fetch all remote tracking refs ───────────────────────────────────
+  print_section "${ICON_ARROW} [3/${total_steps}] Fetching remote tracking refs"
+  git --git-dir="$bare_dir" fetch --prune origin
   print_success "All remote refs fetched"
   # origin/HEAD = default branch; git-create-worktree uses it as its base.
   # An empty remote has no HEAD: warn and keep going.
@@ -362,13 +384,21 @@ clone_repository() {
     print_warn "Could not determine the remote default branch (origin/HEAD not set)"
   fi
 
-  # ── Step 4/5: Create worktrees directory with .git pointer ───────────────────
-  print_section "${ICON_FOLDER} [4/5] Setting up worktrees directory"
+  # ── Step 4: Create worktrees directory with .git pointer ─────────────────────
+  print_section "${ICON_FOLDER} [4/${total_steps}] Setting up worktrees directory"
   ensure_worktrees_root "$bare_dir" "$worktrees_dir"
   print_success "Worktrees root ready at ${GRAY}$worktrees_dir${NC}"
 
-  # ── Step 5/5: Create missing worktrees with upstream tracking ────────────────
-  print_section "${ICON_BRANCH} [5/5] Creating worktrees for missing remote branches"
+  # Prune clean orphan worktrees/branches by default on sync; --no-prune opts out
+  # while keeping `fetch --prune` and creation of new remote branch worktrees.
+  if ((bare_existed == 1 && no_prune == 0)); then
+    # ── Step 5/6: Prune orphan worktrees and branches ──────────────────────────
+    print_section "${ICON_CLEANING} [5/${total_steps}] Pruning orphan worktrees and branches"
+    prune_orphan_worktrees "$bare_dir" "$worktrees_dir" pruned prune_skipped
+  fi
+
+  # ── Final step: Create missing worktrees with upstream tracking ──────────────
+  print_section "${ICON_BRANCH} [${total_steps}/${total_steps}] Creating worktrees for missing remote branches"
   create_missing_worktrees "$bare_dir" "$worktrees_dir" created skipped
 
   mapfile -t branches < <(list_remote_branches "$bare_dir")
@@ -377,6 +407,12 @@ clone_repository() {
   # │ Summary                                                                      │
   # └──────────────────────────────────────────────────────────────────────────────┘
 
+  if ((${#pruned[@]} > 0)); then
+    print_success "Pruned ${#pruned[@]} orphan(s): ${pruned[*]}"
+  fi
+  if ((${#prune_skipped[@]} > 0)); then
+    print_warn "Skipped ${#prune_skipped[@]} orphan(s): ${prune_skipped[*]}"
+  fi
   if ((${#created[@]} > 0)); then
     print_success "Created ${#created[@]} worktree(s): ${created[*]}"
   else
