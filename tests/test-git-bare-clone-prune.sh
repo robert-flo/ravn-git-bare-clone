@@ -232,4 +232,105 @@ if git --git-dir="$BARE_DIR" show-ref --verify --quiet "refs/heads/cwd-gone"; th
   fail "cwd-gone branch should be deleted when invoked outside it"
 fi
 
+# 9. --no-prune on single-repo sync and clone skips orphan pruning while keeping
+#    fetch --prune and creating worktrees for newly added remote branches
+create_remote_branch "no-prune-sync-gone" "np-sync"
+create_remote_branch "no-prune-clone-gone" "np-clone"
+"$BIN" sync "$ORIGIN" > "$TEST_ROOT/setup-no-prune.out" 2>&1
+[[ -d "$WORK_DIR/no-prune-sync-gone" ]] || fail "setup failed: no-prune-sync-gone worktree missing"
+[[ -d "$WORK_DIR/no-prune-clone-gone" ]] || fail "setup failed: no-prune-clone-gone worktree missing"
+
+git -C "$SEED" push origin --delete "no-prune-sync-gone" > /dev/null 2>&1
+create_remote_branch "no-prune-sync-new" "np-sync-new"
+
+"$BIN" sync --no-prune "$ORIGIN" > "$TEST_ROOT/sync-no-prune.out" 2>&1
+if git --git-dir="$BARE_DIR" show-ref --verify --quiet "refs/remotes/origin/no-prune-sync-gone"; then
+  fail "sync --no-prune must still prune remote tracking ref origin/no-prune-sync-gone"
+fi
+[[ -d "$WORK_DIR/no-prune-sync-gone" ]] || fail "sync --no-prune must keep orphan worktree no-prune-sync-gone"
+git --git-dir="$BARE_DIR" show-ref --verify --quiet "refs/heads/no-prune-sync-gone" ||
+  fail "sync --no-prune must keep orphan local branch no-prune-sync-gone"
+[[ -d "$WORK_DIR/no-prune-sync-new" ]] || fail "sync --no-prune must create worktree for new remote branch no-prune-sync-new"
+git --git-dir="$BARE_DIR" show-ref --verify --quiet "refs/heads/no-prune-sync-new" ||
+  fail "sync --no-prune must create local branch no-prune-sync-new"
+
+git -C "$SEED" push origin --delete "no-prune-clone-gone" > /dev/null 2>&1
+create_remote_branch "no-prune-clone-new" "np-clone-new"
+
+"$BIN" clone --no-prune "$ORIGIN" > "$TEST_ROOT/clone-no-prune.out" 2>&1
+if git --git-dir="$BARE_DIR" show-ref --verify --quiet "refs/remotes/origin/no-prune-clone-gone"; then
+  fail "clone --no-prune must still prune remote tracking ref origin/no-prune-clone-gone"
+fi
+[[ -d "$WORK_DIR/no-prune-clone-gone" ]] || fail "clone --no-prune must keep orphan worktree no-prune-clone-gone"
+git --git-dir="$BARE_DIR" show-ref --verify --quiet "refs/heads/no-prune-clone-gone" ||
+  fail "clone --no-prune must keep orphan local branch no-prune-clone-gone"
+[[ -d "$WORK_DIR/no-prune-clone-new" ]] || fail "clone --no-prune must create worktree for new remote branch no-prune-clone-new"
+
+# 10. --no-prune in --group batch mode (real git repos)
+BATCH_WORK="$TEST_ROOT/batch-work"
+mkdir -p "$BATCH_WORK"
+
+init_batch_repo() {
+  local name=$1
+  local origin_dir="$TEST_ROOT/${name}.git"
+  local seed_dir="$TEST_ROOT/${name}-seed"
+
+  git init --bare "$origin_dir" > /dev/null
+  git clone "$origin_dir" "$seed_dir" > /dev/null 2>&1
+  git -C "$seed_dir" config user.email "test@example.com"
+  git -C "$seed_dir" config user.name "Test"
+  git -C "$seed_dir" config commit.gpgsign false
+  printf '%s\n' "$name" > "$seed_dir/README"
+  git -C "$seed_dir" add README
+  git -C "$seed_dir" commit -m "init $name" > /dev/null
+  git -C "$seed_dir" branch -M master
+  git -C "$seed_dir" push -u origin master > /dev/null 2>&1
+
+  git -C "$seed_dir" checkout -B "orphan-branch" master > /dev/null 2>&1
+  printf 'orphan\n' > "$seed_dir/orphan.txt"
+  git -C "$seed_dir" add orphan.txt
+  git -C "$seed_dir" commit -m "orphan" > /dev/null
+  git -C "$seed_dir" push -u origin "orphan-branch" > /dev/null 2>&1
+}
+
+init_batch_repo "batch-a"
+init_batch_repo "batch-b"
+
+"$BIN" clone --group "$BATCH_WORK" "$TEST_ROOT/batch-a.git" "$TEST_ROOT/batch-b.git" > "$TEST_ROOT/batch-init.out" 2>&1
+
+for name in batch-a batch-b; do
+  seed_dir="$TEST_ROOT/${name}-seed"
+  git -C "$seed_dir" push origin --delete "orphan-branch" > /dev/null 2>&1
+  git -C "$seed_dir" checkout -B "added-branch" master > /dev/null 2>&1
+  printf 'added\n' > "$seed_dir/added.txt"
+  git -C "$seed_dir" add added.txt
+  git -C "$seed_dir" commit -m "added" > /dev/null
+  git -C "$seed_dir" push -u origin "added-branch" > /dev/null 2>&1
+done
+
+"$BIN" sync --no-prune --group "$BATCH_WORK" "$TEST_ROOT/batch-a.git" "$TEST_ROOT/batch-b.git" > "$TEST_ROOT/batch-no-prune.out" 2>&1
+
+for name in batch-a batch-b; do
+  bare_dir="$BARE_HOME/${name}.git"
+  work_dir="$BATCH_WORK/$name"
+  if git --git-dir="$bare_dir" show-ref --verify --quiet "refs/remotes/origin/orphan-branch"; then
+    fail "batch --no-prune must still prune origin/orphan-branch in $name"
+  fi
+  [[ -d "$work_dir/orphan-branch" ]] || fail "batch --no-prune must keep orphan-branch worktree in $name"
+  git --git-dir="$bare_dir" show-ref --verify --quiet "refs/heads/orphan-branch" ||
+    fail "batch --no-prune must keep orphan-branch local branch in $name"
+  [[ -d "$work_dir/added-branch" ]] || fail "batch --no-prune must create added-branch worktree in $name"
+done
+
+# Without --no-prune, batch sync prunes orphan-branch in both repos
+"$BIN" sync --group "$BATCH_WORK" "$TEST_ROOT/batch-a.git" "$TEST_ROOT/batch-b.git" > "$TEST_ROOT/batch-prune.out" 2>&1
+for name in batch-a batch-b; do
+  bare_dir="$BARE_HOME/${name}.git"
+  work_dir="$BATCH_WORK/$name"
+  [[ ! -e "$work_dir/orphan-branch" ]] || fail "batch sync must prune orphan-branch worktree in $name"
+  if git --git-dir="$bare_dir" show-ref --verify --quiet "refs/heads/orphan-branch"; then
+    fail "batch sync must prune orphan-branch local branch in $name"
+  fi
+done
+
 printf 'ravn-git-bare-clone prune orphan worktrees: passed\n'

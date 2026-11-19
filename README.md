@@ -7,7 +7,7 @@ Launcher y runtime modular de clonación bare y gestión de worktrees para Arch 
 - **Clonación bare y worktrees automáticos:** Clona repositorios remotos en `$BARE_HOME/<repo>.git` y genera worktrees con upstream tracking para todas las ramas remotas (incluida la rama default, e.g. `master` o `main`) en `$WORKTREES_HOME/<repo>/<branch>`.
 - **Auto-detección de Home Repo:** Si `BARE_HOME` y `WORKTREES_HOME` no están definidos en el entorno y existe `proyecto.yml` en el directorio actual o en algún padre (`$hr_root`), usa `$hr_root/.bares` y `$hr_root/repos`; fuera de un Home Repo mantiene `/z/bare` y `/z/repos`. Se puede sobreescribir por CLI con `-b, --bare-dir` y `-w, --worktrees-dir`.
 - **Módulos create e issue:** Permite crear nuevos worktrees vinculados a ramas o issues de GitHub con tracking upstream.
-- **Sincronización idempotente:** Al re-ejecutar sobre repositorios existentes (`clone` o `sync`), actualiza referencias remotas (`git fetch origin`) y crea worktrees únicamente para las ramas remotas faltantes.
+- **Sincronización idempotente con poda segura:** Al re-ejecutar sobre repositorios existentes (`clone` o `sync`), actualiza referencias remotas (`git fetch --prune origin`), poda por defecto worktrees y ramas locales huérfanas (`[gone]`) limpias respetando guardas de seguridad (`dirty`, `locked`, `current-dir`), y crea worktrees únicamente para las ramas remotas faltantes. Se puede desactivar la poda con `--no-prune`.
 - **Soporte de lotes:** Permite clonar múltiples repositorios organizados en grupos mediante `--group <ruta> <repos...>`.
 - **Completions y compatibilidad:** Autocompletado para bash y zsh; provee comandos de compatibilidad `git-bare-clone`, `git-create-worktree` y `git-issue-worktree`.
 - **Arquitectura modular (Arquetipo A):** Estructura inspirada en `git-setup` con catálogo TSV de comandos (`runtime/commands.tsv`), despacho dinámico (`runtime/lib/dispatch.sh`), librerías compartidas y scripts autónomos en `runtime/scripts/`.
@@ -34,7 +34,8 @@ Launcher y runtime modular de clonación bare y gestión de worktrees para Arch 
 │   │   ├── dispatch.sh           # Despachador hacia scripts ejecutables
 │   │   ├── global_fn.sh          # Librería global de utilidades (100644)
 │   │   ├── lifecycle.sh          # Captura de señales y cleanup
-│   │   └── presentation.sh       # Formateo de terminal y presentación
+│   │   ├── presentation.sh       # Formateo de terminal y presentación
+│   │   └── prune.sh              # Poda segura de worktrees y ramas huérfanas
 │   └── scripts/
 │       ├── clone                 # Implementación del comando clone
 │       ├── create                # Implementación del comando create
@@ -46,6 +47,7 @@ Launcher y runtime modular de clonación bare y gestión de worktrees para Arch 
     ├── test-completion.sh
     ├── test-git-bare-clone-batch.sh
     ├── test-git-bare-clone-defaults.sh
+    ├── test-git-bare-clone-prune.sh
     ├── test-git-bare-clone-sync.sh
     ├── test-git-worktree-base.sh
     ├── test-git-worktree-parallel.sh
@@ -77,8 +79,12 @@ ravn-wt clone \
   --group /z/repos/core org/api org/web \
   --group /z/repos/tools org/cli
 
-# Sincronizar ramas remotas faltantes
+# Sincronizar ramas remotas faltantes y podar worktrees/ramas huérfanas limpias
 ravn-wt sync org/repo
+
+# Sincronizar sin podar worktrees ni ramas huérfanas (single-repo o --group)
+ravn-wt sync --no-prune org/repo
+ravn-wt clone --no-prune --group /z/repos/core org/api org/web
 
 # Crear un worktree nuevo con tracking upstream
 ravn-wt create nueva-feature
@@ -90,6 +96,14 @@ ravn-wt issue 42 fix-login
 ravn-wt help
 ravn-wt clone -h
 ```
+
+### Poda automática al sincronizar
+
+Al sincronizar un repositorio existente (`ravn-wt sync` o `ravn-wt clone`), `ravn-wt` ejecuta `git fetch --prune origin` y, por defecto, elimina los worktrees y ramas locales cuyo upstream `origin/*` ya no existe (`[gone]`), además de limpiar directorios padre vacíos dentro de `$WORKTREES_HOME/<repo>`.
+
+- **Guardas de seguridad:** nunca elimina un worktree si está `dirty` (cambios sin commitear o archivos untracked), `locked` (`git worktree lock`), si contiene el directorio de trabajo actual (`current-dir`), si vive fuera de `$WORKTREES_HOME/<repo>`, si la rama es puramente local (sin upstream en `origin/*`) o si es la rama por defecto (`origin/HEAD`). Los casos omitidos se reportan con una advertencia visible.
+- **Por qué se borran ramas `[gone]` limpias con `git branch -D`:** los PRs mergeados con *squash-merge* generan un commit nuevo en la rama base, por lo que el tip original de la rama no es ancestro en la historia de Git y `git branch -d` rechazaría borrarla aunque ya fue integrada y eliminada en `origin`.
+- **Desactivar la poda (`--no-prune`):** pasar `--no-prune` a `ravn-wt sync` o `ravn-wt clone` (tanto en modo individual como en lotes `--group`) omite la eliminación de worktrees y ramas locales huérfanas, manteniendo `git fetch --prune origin` y la creación de worktrees para ramas remotas nuevas.
 
 ### Comandos de Compatibilidad
 
