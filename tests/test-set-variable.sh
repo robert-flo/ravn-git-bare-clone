@@ -72,30 +72,33 @@ EOF
   )
 }
 
-# Test 4: Outside a Home Repo, defaults to /z/bare and /z/repos
+# Test 4: When /z-home-repos exists, defaults to /z-home-repos/.bare and /z-home-repos/repos
 output=$(run_set_variable "$TEST_ROOT/empty")
-[[ "$output" == "/z/bare|/z/repos" ]] || fail "expected /z/bare|/z/repos outside Home Repo, got: $output"
+expected_root="/z-home-repos"
+[[ -d "/z-home-repos" ]] || expected_root="$TEST_ROOT/home/z-home-repos"
+[[ "$output" == "${expected_root}/.bare|${expected_root}/repos" ]] ||
+  fail "expected ${expected_root}/.bare|${expected_root}/repos, got: $output"
 
-# Test 5: Inside a Home Repo (proyecto.yml in CWD), uses .bares and repos
+# Test 5: Custom RAVN_HOME_REPOS_ROOT overrides default root
+output=$(run_set_variable "$TEST_ROOT/empty" RAVN_HOME_REPOS_ROOT="/custom/root")
+[[ "$output" == "/custom/root/.bare|/custom/root/repos" ]] ||
+  fail "expected /custom/root/.bare|/custom/root/repos, got: $output"
+
+# Test 6: Even inside a directory with proyecto.yml, uses central canonical paths (no .bares/ local)
 mkdir -p "$TEST_ROOT/hr/nested/sub"
 touch "$TEST_ROOT/hr/proyecto.yml"
 output=$(run_set_variable "$TEST_ROOT/hr")
-[[ "$output" == "$TEST_ROOT/hr/.bares|$TEST_ROOT/hr/repos" ]] ||
-  fail "expected Home Repo paths from CWD, got: $output"
+[[ "$output" == "${expected_root}/.bare|${expected_root}/repos" ]] ||
+  fail "expected central paths inside Home Repo, got: $output"
 
-# Test 6: Inside a subdirectory of a Home Repo, walks up to proyecto.yml
-output=$(run_set_variable "$TEST_ROOT/hr/nested/sub")
-[[ "$output" == "$TEST_ROOT/hr/.bares|$TEST_ROOT/hr/repos" ]] ||
-  fail "expected Home Repo paths from subdirectory, got: $output"
-
-# Test 7: Explicit env vars take precedence over Home Repo auto-detection
+# Test 7: Explicit env vars take precedence
 output=$(run_set_variable "$TEST_ROOT/hr/nested/sub" BARE_HOME="/custom/bare" WORKTREES_HOME="/custom/repos")
 [[ "$output" == "/custom/bare|/custom/repos" ]] ||
-  fail "expected explicit env vars to win over Home Repo, got: $output"
+  fail "expected explicit env vars to win, got: $output"
 
-# Test 8: Partial env override keeps explicit var and auto-detects the other
+# Test 8: Partial env override keeps explicit var and sets central default for the other
 output=$(run_set_variable "$TEST_ROOT/hr/nested/sub" BARE_HOME="/custom/bare")
-[[ "$output" == "/custom/bare|$TEST_ROOT/hr/repos" ]] ||
-  fail "expected partial override (BARE_HOME only) to keep BARE_HOME and auto-detect WORKTREES_HOME, got: $output"
+[[ "$output" == "/custom/bare|${expected_root}/repos" ]] ||
+  fail "expected partial override (BARE_HOME only) to keep BARE_HOME and use central WORKTREES_HOME, got: $output"
 
 printf 'set_variable.sh validation contract: passed\n'

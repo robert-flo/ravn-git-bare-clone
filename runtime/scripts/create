@@ -31,7 +31,7 @@ cleanup() {
 
 usage() {
   echo ""
-  echo -e "${WHITE}Usage:${NC} ravn-wt create ${GRAY}[-h] [-v] [-r <repo>] [-b <branch>] [-B <base>] [-p <prefix>] [-N]${NC} ${CYAN}<path>${NC}"
+  echo -e "${WHITE}Usage:${NC} ravn-wt create ${GRAY}[-h] [-v] [-r <repo>] [-b <branch>] [-B <base>] [-p <prefix>] [-N] [-F]${NC} ${CYAN}<path>${NC}"
   echo ""
   echo -e "  Create a new git worktree with optional upstream tracking."
   echo ""
@@ -41,12 +41,13 @@ usage() {
   echo -e "  ${CYAN}--no-color${NC}                    (placeholder)"
   echo -e "  ${CYAN}-r, --repo${NC}     ${GRAY}<path>${NC}           Repository root directory ${GRAY}(default: current directory)${NC}"
   echo -e "  ${CYAN}-N, --no-create-upstream${NC}       Skip creating or setting upstream"
+  echo -e "  ${CYAN}-F, --no-fetch${NC}                 Skip git fetch from origin before creating worktree"
   echo -e "  ${CYAN}-b, --branch${NC}   ${GRAY}<name>${NC}           Branch name to create or checkout"
   echo -e "  ${CYAN}-B, --base${NC}     ${GRAY}<branch>${NC}         Base branch for new worktree ${GRAY}(default: origin/HEAD)${NC}"
   echo -e "  ${CYAN}-p, --prefix${NC}   ${GRAY}<prefix>${NC}         Prefix applied to the branch name ${GRAY}(default: <github.user>/)${NC}"
   echo ""
   echo -e "${WHITE}Steps performed:${NC}"
-  echo -e "  ${GRAY}1.${NC} Create worktree from base branch (or attach to existing branch)"
+  echo -e "  ${GRAY}1.${NC} Fetch origin and create worktree from base branch (or attach to existing branch)"
   echo -e "  ${GRAY}2.${NC} Push branch to remote and configure upstream tracking"
   echo ""
   exit 0
@@ -58,6 +59,7 @@ usage() {
 
 parse_params() {
   create_upstream=1
+  skip_fetch=0
   prefix="$(git config github.user 2>/dev/null || true)/"
   base='origin/HEAD'
   branch=''
@@ -73,6 +75,7 @@ parse_params() {
         shift
         ;;
       -N | --no-create-upstream) create_upstream=0 ;;
+      -F | --no-fetch) skip_fetch=1 ;;
       -b | --branch)
         branch="${2-}"
         shift
@@ -111,7 +114,11 @@ parse_params "$@"
 
 if [[ -n "$repo_dir" ]]; then
   if [[ ! -d "$repo_dir" ]]; then
-    die "Repository directory not found: ${GRAY}$repo_dir${NC}"
+    if [[ -n "${WORKTREES_HOME:-}" && -d "$WORKTREES_HOME/$repo_dir" ]]; then
+      repo_dir="$WORKTREES_HOME/$repo_dir"
+    else
+      die "Repository directory not found: ${GRAY}$repo_dir${NC}"
+    fi
   fi
   cd "$repo_dir" || die "Failed to change to repository directory: ${GRAY}$repo_dir${NC}"
 fi
@@ -144,6 +151,11 @@ if ((create_upstream == 1)); then
 else
   print_info "Upstream:   ${YELLOW}disabled (--no-create-upstream)${NC}"
 fi
+if ((skip_fetch == 1)); then
+  print_info "Fetch:      ${YELLOW}skipped (--no-fetch)${NC}"
+else
+  print_info "Fetch:      ${GREEN}enabled${NC}"
+fi
 
 # ┌──────────────────────────────────────────────────────────────────────────────┐
 # │ Execution Steps                                                              │
@@ -151,11 +163,23 @@ fi
 
 print_section "${ICON_FOLDER} [1/2] Creating worktree"
 
+if ((skip_fetch == 0)); then
+  if git remote get-url origin >/dev/null 2>&1; then
+    print_step "Fetching latest remote refs from origin"
+    git fetch --prune origin || true
+    if [[ "$base" == "origin/HEAD" ]]; then
+      git remote set-head origin --auto >/dev/null 2>&1 || true
+    fi
+  fi
+fi
+
 if [[ "$worktree" == /* ]]; then
   worktree_path="$worktree"
 else
   worktree_path="$(pwd)/$worktree"
 fi
+
+mkdir -p "$(dirname "$worktree_path")"
 
 if [[ -n "$(git branch --list "$branch")" ]]; then
   print_step "Branch ${CYAN}$branch${NC} exists locally — attaching worktree"
@@ -191,7 +215,7 @@ update_remote() {
   fi
 }
 
-cd "$worktree"
+cd "$worktree_path"
 update_remote "$branch"
 print_success "Upstream tracking configured"
 

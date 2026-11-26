@@ -184,7 +184,7 @@ print_info "State:  ${CYAN}$issue_state${NC}"
 print_section "${ICON_FOLDER} [3/4] Creating worktree"
 
 branch_name="${prefix}issue/$issue_num-$slug"
-worktree_name="$issue_num-$slug"
+worktree_name="issue/$issue_num-$slug"
 
 print_info "Branch: ${CYAN}$branch_name${NC}"
 print_info "Slug:   ${CYAN}$slug${NC}"

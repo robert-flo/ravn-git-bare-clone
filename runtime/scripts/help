@@ -30,8 +30,8 @@ show_help() {
     ravn-wt sync [--no-prune] <repo>
 
   LOCATIONS
-    Bare objects:  $BARE_HOME/<repo>.git   (default: /z/bare/<repo>.git, or <home-repo>/.bares/<repo>.git)
-    Worktrees:     $WORKTREES_HOME/<repo>  (default: /z/repos/<repo>, or <home-repo>/repos/<repo>)
+    Bare objects:  $BARE_HOME/<repo>.git   (default: /z-home-repos/.bare/<repo>.git)
+    Worktrees:     $WORKTREES_HOME/<repo>  (default: /z-home-repos/repos/<repo>)
 
   COMMANDS
 HELP_EOF
@@ -43,7 +43,7 @@ HELP_EOF
   EXAMPLES
     ravn-wt clone git@github.com:user/repo.git
     ravn-wt clone -b /custom/bare -w /custom/path user/repo
-    ravn-wt clone --group /z/repos/proj user/repo1 user/repo2
+    ravn-wt clone --group /z-home-repos/repos/proj user/repo1 user/repo2
     ravn-wt sync user/repo
     ravn-wt sync --no-prune user/repo
 

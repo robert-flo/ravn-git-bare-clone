@@ -87,9 +87,9 @@ EOF_GH
 chmod +x "$TEST_ROOT/bin/gh"
 (cd "$WT_ROOT/dev" && PATH="$TEST_ROOT/bin:$PATH" "$REPO_ROOT/bin/git-issue-worktree" 42 demo) \
   > "$TEST_ROOT/issue.out" 2>&1 || fail "git-issue-worktree failed: $(cat "$TEST_ROOT/issue.out")"
-[[ $(git -C "$WT_ROOT/42-demo" rev-parse HEAD) == "$MASTER_SHA" ]] ||
+[[ $(git -C "$WT_ROOT/issue/42-demo" rev-parse HEAD) == "$MASTER_SHA" ]] ||
   fail "git-issue-worktree default base is not the repo's default branch"
-[[ $(git -C "$WT_ROOT/42-demo" branch --show-current) == issue/42-demo ]] ||
+[[ $(git -C "$WT_ROOT/issue/42-demo" branch --show-current) == issue/42-demo ]] ||
   fail "git-issue-worktree branch should be issue/42-demo (empty prefix)"
 
 # An empty remote has no default branch: warn, do not fail.
@@ -98,11 +98,11 @@ git init -q --bare "$TEST_ROOT/empty.git"
   fail "git-bare-clone must not fail on an empty remote"
 grep -Fq 'origin/HEAD not set' "$TEST_ROOT/empty.out" || fail "missing origin/HEAD warning"
 
-# Without origin/HEAD the default base must fail loudly: clear message, and
-# neither the branch nor the worktree may be created.
+# Without origin/HEAD and with -F (--no-fetch), the default base must fail loudly:
+# clear message, and neither the branch nor the worktree may be created.
 git --git-dir="$BARE" symbolic-ref --delete refs/remotes/origin/HEAD
-(cd "$WT_ROOT/dev" && "$REPO_ROOT/bin/git-create-worktree" -N -p "" no-head) \
-  > "$TEST_ROOT/no-head.out" 2>&1 && fail "git-create-worktree must fail without origin/HEAD"
+(cd "$WT_ROOT/dev" && "$REPO_ROOT/bin/git-create-worktree" -N -F -p "" no-head) \
+  > "$TEST_ROOT/no-head.out" 2>&1 && fail "git-create-worktree must fail without origin/HEAD when -F is set"
 grep -Fq 'origin/HEAD is not set' "$TEST_ROOT/no-head.out" || fail "missing origin/HEAD guard message"
 if git --git-dir="$BARE" rev-parse --verify -q refs/heads/no-head >/dev/null; then
   fail "branch must not be created without origin/HEAD"
@@ -110,6 +110,12 @@ fi
 if [[ -e "$WT_ROOT/no-head" ]]; then
   fail "worktree must not be created without origin/HEAD"
 fi
+
+# But with default fetch enabled, git-create-worktree automatically restores origin/HEAD
+(cd "$WT_ROOT/dev" && "$REPO_ROOT/bin/git-create-worktree" -N -p "" restored-head) \
+  > "$TEST_ROOT/restored-head.out" 2>&1 || fail "git-create-worktree should auto-restore origin/HEAD via fetch"
+[[ $(git -C "$WT_ROOT/restored-head" rev-parse HEAD) == "$MASTER_SHA" ]] ||
+  fail "auto-restored origin/HEAD should point to default master"
 
 # die() comes from global_fn.sh: an unknown option must exit 1 with a
 # message, not 127 (command not found).
