@@ -27,8 +27,8 @@ source "$RUNTIME_DIR/lib/prune.sh"
 # │ Configuration                                                                │
 # └──────────────────────────────────────────────────────────────────────────────┘
 
-BARE_HOME="${BARE_HOME:-/z/bare}"
-WORKTREES_HOME="${WORKTREES_HOME:-/z/repos}"
+BARE_HOME="${BARE_HOME:-${RAVN_HOME_REPOS_ROOT%/}/.bare}"
+WORKTREES_HOME="${WORKTREES_HOME:-${RAVN_HOME_REPOS_ROOT%/}/repos}"
 worktrees_base=""
 declare -a args=()
 declare -i batch_mode=0
@@ -51,8 +51,8 @@ usage() {
   echo -e "  create worktrees for remote branches that are still missing locally."
   echo ""
   echo -e "${WHITE}Locations${NC} ${GRAY}(override via env vars or flags):${NC}"
-  echo -e "  ${GRAY}Bare objects:${NC}  \$BARE_HOME/<repo>.git   ${GRAY}(default: /z/bare/<repo>.git, or <home-repo>/.bares/<repo>.git)${NC}"
-  echo -e "  ${GRAY}Worktrees:${NC}     \$WORKTREES_HOME/<repo>  ${GRAY}(default: /z/repos/<repo>, or <home-repo>/repos/<repo>)${NC}"
+  echo -e "  ${GRAY}Bare objects:${NC}  \$BARE_HOME/<repo>.git   ${GRAY}(default: /z-home-repos/.bare/<repo>.git)${NC}"
+  echo -e "  ${GRAY}Worktrees:${NC}     \$WORKTREES_HOME/<repo>  ${GRAY}(default: /z-home-repos/repos/<repo>)${NC}"
   echo ""
   echo -e "${WHITE}Options:${NC}"
   echo -e "  ${CYAN}-h, --help${NC}                 Print this help and exit"
@@ -69,8 +69,8 @@ usage() {
   echo -e "${WHITE}Batch behavior:${NC} existing repositories are refreshed (fetch --prune + prune"
   echo -e "  orphans unless --no-prune + missing worktrees); a failure stops the batch."
   echo -e "${WHITE}Examples:${NC}"
-  echo -e "  ravn-wt clone --group /z/repos/<proyecto> acme/api acme/web"
-  echo -e "  ravn-wt clone --group /z/repos/app owner/api owner/web --group /z/repos owner/tools"
+  echo -e "  ravn-wt clone --group /z-home-repos/repos/<proyecto> acme/api acme/web"
+  echo -e "  ravn-wt clone --group /z-home-repos/repos/app owner/api owner/web --group /z-home-repos/repos owner/tools"
   echo -e "  ravn-wt clone owner/repo             ${GRAY}# re-run to sync new branches and prune orphans${NC}"
   echo -e "  ravn-wt sync --no-prune owner/repo   ${GRAY}# fetch + new worktrees without pruning orphans${NC}"
   echo ""

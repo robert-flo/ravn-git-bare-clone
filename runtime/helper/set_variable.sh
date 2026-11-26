@@ -6,25 +6,16 @@ readonly RUNTIME_DIR="${RUNTIME_DIR:-$(cd "$helper_dir/.." && pwd)}"
 readonly RAVN_GIT_BARE_CLONE_ROOT="${RAVN_GIT_BARE_CLONE_ROOT:-$(cd "$RUNTIME_DIR/.." && pwd)}"
 
 if [[ -z "${BARE_HOME:-}" || -z "${WORKTREES_HOME:-}" ]]; then
-  _gbc_hr_root=""
-  _gbc_dir="$PWD"
-  while true; do
-    if [[ -f "$_gbc_dir/proyecto.yml" ]]; then
-      _gbc_hr_root="$_gbc_dir"
-      break
+  if [[ -z "${RAVN_HOME_REPOS_ROOT:-}" ]]; then
+    if [[ -d "/z-home-repos" ]]; then
+      RAVN_HOME_REPOS_ROOT="/z-home-repos"
+    else
+      RAVN_HOME_REPOS_ROOT="${HOME}/z-home-repos"
     fi
-    [[ "$_gbc_dir" == "/" ]] && break
-    _gbc_dir="$(dirname "$_gbc_dir")"
-  done
-
-  if [[ -n "$_gbc_hr_root" ]]; then
-    BARE_HOME="${BARE_HOME:-${_gbc_hr_root%/}/.bares}"
-    WORKTREES_HOME="${WORKTREES_HOME:-${_gbc_hr_root%/}/repos}"
-  else
-    BARE_HOME="${BARE_HOME:-/z/bare}"
-    WORKTREES_HOME="${WORKTREES_HOME:-/z/repos}"
   fi
-  unset _gbc_hr_root _gbc_dir
+
+  BARE_HOME="${BARE_HOME:-${RAVN_HOME_REPOS_ROOT%/}/.bare}"
+  WORKTREES_HOME="${WORKTREES_HOME:-${RAVN_HOME_REPOS_ROOT%/}/repos}"
 fi
 
 USER_NAME="${USER_NAME:-${GIT_AUTHOR_NAME:-${NAME:-}}}"
@@ -47,6 +38,7 @@ fi
 
 export RUNTIME_DIR
 export RAVN_GIT_BARE_CLONE_ROOT
+export RAVN_HOME_REPOS_ROOT
 export BARE_HOME
 export WORKTREES_HOME
 export USER_NAME
